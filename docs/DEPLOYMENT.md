@@ -151,7 +151,7 @@ https://<用户名>.github.io/<仓库名>/
 - 项目站点（普通仓库）：`https://<用户名>.github.io/<仓库名>/`
 - 用户/组织站点（仓库名恰为 `<用户名>.github.io`）：`https://<用户名>.github.io/`（根路径）
 
-本项目对应地址：`https://fwd001.github.io/MemoDeck/`
+本项目对应地址：`https://wenzo001.github.io/MemoDeck/`
 
 **在 Actions 运行记录里直接打开**：
 
@@ -192,7 +192,7 @@ https://<用户名>.github.io/<仓库名>/
 
 ### 3.5 本项目实战验证记录（2026-09-04）
 
-**现状**：仓库已启用 GitHub Pages（Source = `GitHub Actions`），部署工作流为 `.github/workflows/deploy.yml`，线上地址 **https://fwd001.github.io/MemoDeck/**（已验证 HTTP 200，标题与本地一致）。
+**现状**：仓库已启用 GitHub Pages（Source = `GitHub Actions`），部署工作流为 `.github/workflows/deploy.yml`，线上地址 **https://wenzo001.github.io/MemoDeck/**（已验证 HTTP 200，标题与本地一致）。
 
 **启用前的一段“失败日志”**（可作为排查参照）：Pages 未开启时推送代码，`Deploy to GitHub Pages` 工作流会在第 2 步 `配置 Pages（configure-pages）` 就失败、上传/部署两步全部跳过——这是“Pages 还没开启”的典型特征，**不是工作流写错了**。开启后无需改任何文件，直接 Re-run 或重新推送即成功（本项目第 2 次部署即通过，此前多次红色均源于此）。
 

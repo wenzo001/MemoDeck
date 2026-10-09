@@ -13,7 +13,7 @@
 
 **双击 `index.html` 就能用。** 不用装 Node，不用装依赖，不用联网，不用起服务器。
 
-**🟢 在线体验：[https://fwd001.github.io/MemoDeck/](https://fwd001.github.io/MemoDeck/)** —— GitHub Pages 自动部署，打开即测（内容与仓库一致）
+**🟢 在线体验：[https://wenzo001.github.io/MemoDeck/](https://wenzo001.github.io/MemoDeck/)** —— GitHub Pages 自动部署，打开即测（内容与仓库一致）
 
 </div>
 
@@ -255,7 +255,7 @@ memodeck/
 │   ├── core.test.js              # 纯逻辑单元测试（26 项，零依赖）
 │   ├── queue.test.js              # 取题管线测试（21 项，含 48 组合不变式遍历）
 │   ├── extensions.test.js         # 扩展测试（progress/session/stats/migration/wrongbook，41 项）
-│   ├── v3-compat.test.js          # 3.0 兼容与规则测试（38 项：导航映射、逐空拆分、题型注册、单一离开规则、命名消歧、判分口径唯一性）
+│   ├── v3-compat.test.js          # 3.0 兼容与规则测试（41 项：导航映射、逐空拆分、题型注册、单一离开规则、命名消歧、判分口径唯一性、模板接线守卫）
 │   └── icons.test.js              # §4.5 图标构建规则的静态守卫（6 项：零外边距名单与模板双向差集、四档 22/24/30/44 各有主人）
 ├── docs/
 │   ├── USAGE.md            # 使用说明
@@ -289,7 +289,7 @@ memodeck/
 
 详细步骤与配置片段见 [部署指南](./docs/DEPLOYMENT.md)。
 
-> 本项目已上线：**[https://fwd001.github.io/MemoDeck/](https://fwd001.github.io/MemoDeck/)**（2026-09-04 跑通，内置 13 题示例历史题库，可直接试用全部功能）。每次推送 `main` 自动更新。
+> 本项目已上线：**[https://wenzo001.github.io/MemoDeck/](https://wenzo001.github.io/MemoDeck/)**（2026-09-04 跑通，内置 13 题示例历史题库，可直接试用全部功能）。每次推送 `main` 自动更新。
 
 ---
 
@@ -323,7 +323,7 @@ python3 -m http.server 8000
 # 打开 http://localhost:8000
 
 # 方式 B: 部署到 GitHub Pages / Vercel / Netlify（任何 https 静态托管）
-# 已部署实例: https://fwd001.github.io/MemoDeck/
+# 已部署实例: https://wenzo001.github.io/MemoDeck/
 ```
 
 然后：
@@ -349,7 +349,7 @@ python3 -m http.server 8000
 |---|---|
 | `manifest.json` | 应用清单：名称、图标、主题色（暖纸 `#F8F5F0`，深色 `#141210`）、`display:standalone`（独立窗口），外加「今日 / 答题 / 模拟考试 / 错题本」四个直达快捷方式 |
 | `service-worker.js` | 离线缓存策略 |
-| `assets/icon-192.png` / `icon-512.png` | 品牌图标（蓝色渐变 + 白色卡片叠层）。3.0 换的是**界面**主题，桌面图标没跟着重绘，源文件仍是 `assets/logo.svg` |
+| `assets/icon-192.png` / `icon-512.png` | 应用图标：墨底 `#211A15` + 纸色卡面 + 琥珀对勾，与 3.0 界面同一套色（`css/tokens.css`）。源文件是矢量的 `assets/logo.svg`，改完跑 `node tools/make-icons.mjs` 重新栅格化（需要 devDependency `sharp`，应用运行时依旧零依赖）。图标内容全部落在中心安全区内，因为 manifest 声明了 `purpose: "any maskable"` |
 
 ---
 
@@ -417,7 +417,7 @@ migration 写、供导出用）、学习进度 `examProgress:v1`、会话恢复�
 本地验证：
 
 ```bash
-# 单元测：纯逻辑与静态文本，零依赖、零框架、零构建（五个套件共 132 项）
+# 单元测：纯逻辑与静态文本，零依赖、零框架、零构建（五个套件共 135 项）
 npm test
 
 # 等价于
@@ -427,7 +427,7 @@ node test/core.test.js && node test/queue.test.js && node test/extensions.test.j
 python3 -m http.server 8000   # 打开 http://localhost:8000
 ```
 
-推送后会跑 CI，九道检查：单元测试（五个套件 132 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
+推送后会跑 CI，九道检查：单元测试（五个套件 135 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
 JS 语法、Vue 模板表达式安全（防白屏）、关键文件完整、文档链接可达、CSS 变量都有定义、对比度不变量。
 规则见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)，本地可直接复现。
 

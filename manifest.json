@@ -1,7 +1,7 @@
 {
   "name": "MemoDeck · 安全生产题库记忆系统",
   "short_name": "MemoDeck",
-  "description": "基于间隔重复的题库刷题与记忆管理：今日任务、四种练习模式、错题本、离线备份。",
+  "description": "基于间隔重复的题库刷题与记忆管理：今日任务、六种练习模式、错题本、离线备份。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
