@@ -255,6 +255,20 @@
   --layout-gutter:      var(--md-page-pad);
   --header-h:           auto;
   --nav-h:              64px;    /* 底部导航：要装下 44pt 目标 + 标签 */
+  /* 固定底栏与底部导航的关系 —— 一处定义，所有 fixed 底栏都吃这一对 token。
+     <560px 底部导航（z-40）常驻，底栏若还贴着 bottom:0 就会被整个压在下面：
+     2026-10-09 实测背诵/答题/模拟考试三个模式的主按钮各被盖住 60.4px，elementFromPoint
+     都命中了 tabbar —— 能看见一条边、点下去没反应。安全区只算一次：让位时导航已经
+     把 env(safe-area-inset-bottom) 吃掉了，底栏自己不再重复留。 */
+  --bottom-bar-lift:    0px;
+  --bottom-safe:        env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 559px) {
+  :root {
+    --bottom-bar-lift: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    --bottom-safe: 0px;
+  }
 }
 
 /* ============================================================

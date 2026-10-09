@@ -297,10 +297,13 @@ textarea.paste-box:focus-visible { outline: none; box-shadow: var(--focus-ring);
 .backup-import-btn { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ============ 一级导航：移动端底部 Tab Bar（§5.1 / §5.3） ============ */
-/* 底部固定操作区用 1px 顶部描边而非阴影——它不是浮层，是页面结构的延续（§6）。 */
+/* 底部固定操作区用 1px 顶部描边而非阴影——它不是浮层，是页面结构的延续（§6）。
+   min-height 必须等于 --nav-h：底栏按这个 token 让位，导航实际比 token 矮就会
+   在两者之间留出一条 3.6px 的纸色缝（实测 60.4 vs 64），看着像两根断开的条。 */
 .md-tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: stretch;
+  min-height: var(--nav-h);
   background: var(--md-surface);
   border-top: 1px solid var(--md-border);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -867,7 +870,7 @@ textarea.ai-prompt:focus-visible { outline: none; box-shadow: var(--focus-ring);
 
 /* ============ Toast ============ */
 .toast {
-  position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px) + var(--nav-h));
+  position: fixed; left: 50%; bottom: calc(28px + var(--bottom-bar-lift));
   transform: translateX(-50%);
   background: var(--md-ink); color: var(--md-ink-on);
   padding: 12px 20px; border-radius: var(--md-r-pill);
@@ -875,18 +878,6 @@ textarea.ai-prompt:focus-visible { outline: none; box-shadow: var(--focus-ring);
   box-shadow: var(--md-shadow-3); z-index: 100; max-width: 90vw;
 }
 .toast.err { background: var(--md-judge-wrong); color: var(--on-accent); }
-
-/* ============ 底部固定操作区（§5.5） ============ */
-/* padding-bottom = 20 + env(safe-area-inset-bottom)；用 1px 顶部描边而非阴影 */
-.md-actionbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
-  display: flex; align-items: center; gap: var(--sp-3);
-  background: var(--md-surface);
-  border-top: 1px solid var(--md-border);
-  padding: var(--sp-3) var(--md-page-pad) calc(20px + env(safe-area-inset-bottom, 0px));
-}
-.md-actionbar .btn { flex: 1 1 auto; }
-.md-actionbar.above-tabbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
 
 /* ============ 折叠屏形态标识（§8） ============ */
 .md-form-badge {

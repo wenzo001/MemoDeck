@@ -118,10 +118,12 @@
     },
     template: `
       <div class="md-tf" role="group" aria-label="判断">
-        <button type="button" class="md-tf-btn" :class="cls('true')" :disabled="disabled" @click="pick('true')">
+        <button type="button" class="md-tf-btn" :class="cls('true')" :disabled="disabled"
+                :aria-pressed="on('true') ? 'true' : 'false'" @click="pick('true')">
           <svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>正确
         </button>
-        <button type="button" class="md-tf-btn" :class="cls('false')" :disabled="disabled" @click="pick('false')">
+        <button type="button" class="md-tf-btn" :class="cls('false')" :disabled="disabled"
+                :aria-pressed="on('false') ? 'true' : 'false'" @click="pick('false')">
           <svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>错误
         </button>
       </div>`
@@ -295,13 +297,24 @@
     emits: ['update:choice', 'update:multi', 'update:blanks', 'update:essay'],
     computed: {
       presenter() { return TYPE_PRESENTERS[this.item.rawType] || null; },
-      control() { return this.presenter ? this.presenter.control : 'default-renderer'; }
+      control() { return this.presenter ? this.presenter.control : 'default-renderer'; },
+      /* 作答模型 → 控件的 model-value。这是一张**按控件类型**的映射，不是按题型猜：
+         2026-10-09 修——原先的三元链只覆盖 choice/blank/essay，判断题拿到的永远是 null，
+         于是 TfInput.on() 恒 false：模拟考试里点「正确」没有任何视觉反馈，再点一下
+         还会被 toggle 成 null 把答案静默清掉（exam 不传 state-of，没有第二条路兜住）。 */
+      model() {
+        switch (this.control) {
+          case 'choice-input': return this.item.rawType === 'multi_choice' ? this.multi : this.choice;
+          case 'blank-input':  return this.blanks;
+          case 'essay-input':  return this.essay;
+          case 'tf-input':     return this.choice;      // 判断：'true' | 'false' | null
+          default:             return null;             // 未注册题型没有作答控件
+        }
+      }
     },
     template: `
       <component :is="control" :item="item" :disabled="disabled" :state-of="stateOf" :flags="flags"
-                 :model-value="control === 'choice-input' ? (item.rawType === 'multi_choice' ? multi : choice)
-                               : (control === 'blank-input' ? blanks
-                               : (control === 'essay-input' ? essay : null))"
+                 :model-value="model"
                  @update:model-value="onVal"></component>`,
     methods: {
       onVal(v) {

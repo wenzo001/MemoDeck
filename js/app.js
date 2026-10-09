@@ -681,6 +681,11 @@
         // 未注册题型不提供作答控件（§4.2 DefaultRenderer：不判分、不写进度）
         return false;
       });
+      // 未注册题型：有「跳过」，否则这一轮会死锁在本题（千题题库里混进一道未知题型很常见）
+      const exerciseUnsupported = computed(() => {
+        const cur = exerciseCurrentItem.value;
+        return !!cur && !isRegisteredType(cur.rawType);
+      });
 
       // 逐空作答 → 写回给判分与记录的「学生答案」文本（只用于展示与备份，不参与判分）
       function exerciseStudentAnswerText(cur) {
@@ -1374,6 +1379,14 @@
         const f = features.value;
         return PRACTICE_MODES.filter(m => Nav.modeVisibleByFeature(f, m));
       });
+      /* practiceMode 必须始终是 practiceModes 里的一员。三个入口都可能把它写成不可见的模式：
+         本地上次用过的模式、旧书签、manifest 快捷方式；而 features 是异步到达的（题库加载完
+         才知道哪些模式被关掉）。所以夹取只写这一处，switchTab / hydrate / 启动各调用点不再各判一遍。 */
+      function settlePracticeMode() {
+        if (practiceModes.value.some(m => m.key === practiceMode.value)) return;
+        practiceMode.value = practiceModes.value.length ? practiceModes.value[0].key : 'recite';
+      }
+      Vue.watch(() => features.value, settlePracticeMode);
       const practiceModeHint = computed(() => {
         const m = practiceModes.value.find(x => x.key === practiceMode.value);
         return m ? m.caliber : '';
@@ -1559,6 +1572,20 @@
         toast('已放弃这次恢复点', true);
       }
 
+      /* 「这道题的历史」（§5.4：平板/桌面独有）。组件是纯展示，数据必须在这里喂进去 ——
+         props 漏接的后果不是报错，而是它永远显示「学过 0 次 / 尚未作答 / 不在错题本」：
+         一块在每张 ≥768px 的屏幕上对用户说谎的卡片。 */
+      function historyOf(item) {
+        const gid = item && item.gid;
+        if (!gid) return { entry: null, wrong: null };
+        return {
+          entry: (progressMap.value && progressMap.value[gid]) || null,
+          wrong: wrongEntries.value.find(e => e.item && e.item.gid === gid) || null
+        };
+      }
+      const exerciseHistory = computed(() => historyOf(exerciseCurrentItem.value));
+      const catHistory = computed(() => historyOf(catCurrent.value));
+
       /* ============================================================
        * 3.0 · 作答状态层（§4.4 七种状态里的「正确 / 漏选 / 你选」三档）
        * 判断/单选/多选共用同一套映射，交卷后由它给选项块上色并给判定文字。
@@ -1568,6 +1595,9 @@
         if (!item) return [];
         if (item.rawType === 'multi_choice') return Array.isArray(item.answer) ? item.answer.slice().sort() : [];
         if (item.rawType === 'single_choice') return item.answer ? [String(item.answer)] : [];
+        // 判断题的标准项取自判分模块（不是在这里再写一遍 !!answer）：
+        // 漏了这一支会让「答对了」的判断题按钮被涂成红色（§4.4 正确/你选 两态搞反）
+        if (item.rawType === 'true_false') return Judge.stdTfKeys(item);
         return [];
       }
       function makeOptionState(getItem, getPicked, getShown) {
@@ -1971,10 +2001,7 @@
         if (!NAV_ITEMS.some(n => n.key === k)) return;
         activeTab.value = k;
         if (k === 'practice') {
-          // 被旧开关关掉的模式不能停在原地（features 变了要落到可见模式上）
-          if (!practiceModes.value.some(m => m.key === practiceMode.value)) {
-            practiceMode.value = practiceModes.value.length ? practiceModes.value[0].key : 'recite';
-          }
+          settlePracticeMode();          // 被旧开关关掉的模式不能停在原地
           writeHash('practice', practiceMode.value);
         } else {
           writeHash(k);
@@ -1995,7 +2022,11 @@
         const r = parseHash();
         if (!r) return;
         activeTab.value = r.tab;
-        if (r.mode) practiceMode.value = r.mode;
+        // 模式过可见性门：被 features 关掉的模式 + 一条旧书签，会落进分段控件里
+        // 根本不存在的模式（界面显示着它，模式条却没有任何选中项）。features 后到时
+        // 由 settlePracticeMode 兜住。
+        if (r.mode && practiceModes.value.some(m => m.key === r.mode)) practiceMode.value = r.mode;
+        settlePracticeMode();
       }
 
       function setTheme(mode) { themeMode.value = mode; applyTheme(); }
@@ -2093,6 +2124,9 @@
       // 配套的 insertCatSep / catFillInput 一并删除——留着就是一个没人读的按钮。
       function isObjective(rawType) {
         return Judge.isObjective(rawType);   // 口径唯一，见 js/judge.js
+      }
+      function isRegisteredType(rawType) {
+        return Types.isRegistered(rawType);  // 六种已注册题型；其余走只读兜底
       }
       function catSubmit() {
         const cur = catCurrent.value;
@@ -2398,7 +2432,7 @@
         catStage, catSelected, catInput, catChoice, catMultiSel, catBlanks, catRevealed, catFeedback,
         catIndex, catStats, catWrongItems, catError, catCurrent, catNextLabel, hasPrevCat, catElapsed, catTypes, catAllSelected,
         catProgressPct, catElapsedLive, catOptionState, catOptionFlag,
-        catTriplet,
+        catTriplet, catHistory,
         customForm,
         wrongTab, wrongCount, wrongFiltered, wrongItems, wrongSourceTabs, wrongStatusDist,
         wrongPracticeQueue, wrongPracticeShow,
@@ -2408,7 +2442,7 @@
         doExportBackup, onImportBackup, doClearAll, confirmClearAll,
         resetPractice, mark, togglePreview, addPreviewToWrongbook,
         toggleCatType, selectAllTypes, startCat, catSubmit, catSelfJudge, catNext, catPrev,
-        catRestart, addCustomQuestion, isObjective,
+        catRestart, addCustomQuestion, isObjective, isRegisteredType,
         sourceLabel,
         wrongRemove, wrongClear, startWrongPractice, wrongMark, startWrongExam,
         wrongMarkMastered, askRemoveWrong, askClearWrongbook,
@@ -2440,7 +2474,7 @@
         exercisePerSession, exercisePerSessionCustom, exerciseTypes,
         exerciseIndex,
         exerciseAnswerSubmitted, exerciseChoice, exerciseMultiSel, exerciseInput, exerciseBlanks,
-        exerciseFeedback, exerciseSelfResult, exerciseCanSubmit,
+        exerciseFeedback, exerciseSelfResult, exerciseCanSubmit, exerciseUnsupported, exerciseHistory,
         exerciseOptionState, exerciseOptionFlag,
         exercisePassCount, exerciseFailCount, exerciseSummaryIcon, exerciseNewWrong, exerciseNewMastered, exerciseElapsedSec,
         exerciseSwipeX, exerciseSwipeActive,

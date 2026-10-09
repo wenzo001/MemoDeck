@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <!-- ⚠️ 升级时与 config.js APP_VERSION + service-worker.js VERSION 三处同步 -->
-  <meta name="version" content="3.0.0">
+  <meta name="version" content="3.0.1">
   <title>MemoDeck · 安全生产题库</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/components.css">
@@ -500,7 +500,8 @@
                         </div>
                       </div>
                       <!-- 本题历史：移动端放不下，宽屏才有价值（§5.4） -->
-                      <question-history class="md-pane-history" :item="exerciseCurrentItem"></question-history>
+                      <question-history class="md-pane-history" :item="exerciseCurrentItem"
+                                        :entry="exerciseHistory.entry" :wrong="exerciseHistory.wrong"></question-history>
                     </div>
 
                     <div class="md-pane-answer">
@@ -531,7 +532,11 @@
                   </div>
 
                   <div class="md-study-footer">
-                    <button v-if="!exerciseAnswerSubmitted" class="md-study-pass-btn" @click="exerciseSubmit" :disabled="!exerciseCanSubmit">
+                    <!-- 未注册题型：没有作答控件也没有可提交的东西，必须给一条出路 -->
+                    <button v-if="exerciseUnsupported" class="md-study-pass-btn" @click="exerciseNext">
+                      <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>跳过（本版不支持该题型）
+                    </button>
+                    <button v-else-if="!exerciseAnswerSubmitted" class="md-study-pass-btn" @click="exerciseSubmit" :disabled="!exerciseCanSubmit">
                       <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>提交答案
                     </button>
                     <button v-else class="md-study-pass-btn" @click="exerciseNext">
@@ -592,7 +597,8 @@
                           <div class="question"><question-text :item="catCurrent"></question-text></div>
                         </div>
                       </div>
-                      <question-history class="md-pane-history" :item="catCurrent"></question-history>
+                      <question-history class="md-pane-history" :item="catCurrent"
+                                        :entry="catHistory.entry" :wrong="catHistory.wrong"></question-history>
                     </div>
                     <div class="md-pane-answer">
                       <q-renderer :item="catCurrent" :disabled="catRevealed"
@@ -601,7 +607,9 @@
                                   v-model:blanks="catBlanks" v-model:essay="catInput"></q-renderer>
                       <judge-result v-if="catRevealed && catFeedback" :result="catFeedback"></judge-result>
                       <answer-view v-if="catRevealed" :item="catCurrent"></answer-view>
-                      <div class="md-self-judge" v-if="catRevealed && !catFeedback && !isObjective(catCurrent.rawType)">
+                      <!-- 自评只对**已注册**的主观题开放：未注册题型走只读兜底，横幅明写
+                           「不判分、不写进度」，这里再给一对自评按钮就等于当场推翻它 -->
+                      <div class="md-self-judge" v-if="catRevealed && !catFeedback && !isObjective(catCurrent.rawType) && isRegisteredType(catCurrent.rawType)">
                         <span class="md-self-label">对照参考答案自评：</span>
                         <button class="md-self-btn ok" @click="catSelfJudge(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对</button>
                         <button class="md-self-btn no" @click="catSelfJudge(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错</button>
@@ -880,6 +888,10 @@
                 <caliber-note icon="i-info">任何入口答对都计入连对，累计连对 3 次自动移出错题本；移出时会写明原因。手动删除同样会写明原因。</caliber-note>
                 <div class="select-row" style="margin-top:12px;">
                   <button class="btn" @click="startWeakAttack"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>攻薄弱项</button>
+                  <!-- §5.1：错题本内提供两种发起方式 —— 「重练」（逐张自评、可推进连对）
+                       与「重考」（整卷判分）。重练卡片一直有，但入口曾经没有任何调用方，
+                       于是那块模板永远不渲染：留着 UI 却没有门。 -->
+                  <button class="btn gray" @click="startWrongPractice(wrongItems)"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>错题重练</button>
                   <button class="btn gray" @click="startWrongExam(wrongItems)"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>错题重考</button>
                   <button class="btn-text small" @click="askClearWrongbook" style="margin-left:auto;"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>清空错题本</button>
                 </div>
@@ -919,8 +931,10 @@
             <div class="wb-item" v-for="e in wrongFiltered" :key="e.id">
               <div class="wb-item-head">
                 <span class="src-tag">{{ sourceLabel(e.source) }}</span>
-                <!-- 错题本四档：新错/巩固中/模糊/已攻克（与记忆四档绝不同名，§7.3） -->
-                <status-chip :kind="e.status || 'new'" :set="e.status || 'new'"></status-chip>
+                <!-- 错题本四档：新错/巩固中/模糊/已攻克（与记忆四档绝不同名，§7.3）
+                     set 选的是**词表**（memory | wrong | session），不是状态值——
+                     传成状态值会静默回落到记忆表：new→「新题」、weak→「需复习」 -->
+                <status-chip :kind="e.status || 'new'" set="wrong"></status-chip>
                 <span class="wb-item-stats">
                   <span class="wb-err-count" v-if="e.wrongCount > 1">出错 {{ e.wrongCount }} 次</span>
                   <span class="wb-streak" v-if="e.correctStreak > 0">连对 {{ e.correctStreak }}</span>

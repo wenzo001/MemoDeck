@@ -355,6 +355,33 @@ test('正确率分母 = 已判分题数（不含待自评与未作答）——�
   assert(pass / (graded + pending + blank) !== 0.76, '若把待自评与未作答算进分母，正确率会被系统性压低');
 });
 
+test('模板接线：词表选择器与纯展示组件的 props 不许漏传', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  /* status-chip 的 set 决定用哪张词表。只查「有没有 set=」会被两种错法蒙过去：
+     删掉属性、或把状态值当词表名传进去（:set="e.status"）—— 后者正是这次的真缺陷，
+     它静默回落到记忆表，new→「新题」、weak→「需复习」。所以这里要**认出词表名本身**。 */
+  const chips = [...html.matchAll(/<status-chip\b[^>]*>/g)].map(m => m[0]);
+  assert(chips.length >= 2, '模板里找不到 status-chip 用法，这条门禁在扫空气');
+  chips.forEach(tag => {
+    const m = tag.match(/\sset="([^"]*)"/);
+    assert(m, 'status-chip 没写 set：' + tag);
+    assert(/^(memory|wrong|session)$/.test(m[1]),
+      'status-chip 的 set 必须是词表名 memory|wrong|session，实际是「' + m[1] + '」：' + tag);
+  });
+  // 「这道题的历史」是纯展示组件：entry/wrong 漏了不报错，只会永远显示「学过 0 次」。
+  // 必须是绑定（:entry），写字面量等于把组件钉死在一个空值上。
+  const hist = [...html.matchAll(/<question-history\b[^>]*>/g)].map(m => m[0]);
+  assert(hist.length >= 2, '模板里找不到 question-history 用法');
+  hist.forEach(tag => {
+    assert(/:entry=/.test(tag), 'question-history 没绑定 entry：' + tag);
+    assert(/:wrong=/.test(tag), 'question-history 没绑定 wrong：' + tag);
+  });
+  // 错题本必须同时有「重练」与「重考」两个发起方式（§5.1）：
+  // 重练的模板与函数都在、却没有任何调用方 —— 那等于 UI 有卡片没有门
+  assert(/startWrongPractice\(/.test(html), '错题重练入口没有接线（§5.1 要求两种发起方式）');
+  assert(/startWrongExam\(/.test(html), '错题重考入口没有接线');
+});
+
 console.log('\n判分口径唯一（§4.3）· 直接打在被使用的实现上（js/judge.js）');
 
 test('判断：未作答判错不送分，尤其标准答案为 false 时', () => {
@@ -401,6 +428,42 @@ test('填空/问答/专项没有判分逻辑，一律用户自评', () => {
   });
 });
 
+test('判断题的「正确答案项」取自判分模块，且与判分结论恒等', () => {
+  // 界面把哪一项涂成绿色，就必须是 judge 认作正确的那一项。
+  // 曾经 stdKeysOf 不认 true_false，于是正确答案是「正确」时用户选了「正确」，
+  // 横幅说答对、按钮却被涂成红色（§4.4 把「正确」和「你选」两态搞反）。
+  [[true, 'true'], [true, 'false'], [true, null],
+   [false, 'true'], [false, 'false'], [false, null]].forEach(([ans, pick]) => {
+    const item = { rawType: 'true_false', answer: ans };
+    const std = Judge.stdTfKeys(item);
+    eq(std.length, 1, '判断题只有一个标准项');
+    eq(Judge.judge(item, pick), std[0] === pick,
+       `answer=${ans} pick=${pick} 时「标注的正确项」与「判分结论」不一致`);
+  });
+  eq(Judge.stdTfKeys(null), []);
+});
+
+test('题型分发器把作答模型交给对应控件（判断题曾拿到 null）', () => {
+  const QR = Types.components['q-renderer'];
+  const modelFor = (rawType, extra) => {
+    const ctx = Object.assign({
+      item: { rawType }, presenter: Types.presenterOf(rawType),
+      choice: 'true', multi: ['A', 'B'], blanks: ['甲'], essay: '一段话'
+    }, extra || {});
+    ctx.control = QR.computed.control.call(ctx);
+    return QR.computed.model.call(ctx);
+  };
+  // 判断题：exam 页不传 state-of，选中态完全靠 model-value 送进去
+  eq(modelFor('true_false'), 'true');
+  eq(modelFor('single_choice'), 'true');
+  eq(modelFor('multi_choice'), ['A', 'B']);
+  eq(modelFor('fill_blank'), ['甲']);
+  eq(modelFor('special_fill_blank'), ['甲']);
+  eq(modelFor('essay'), '一段话');
+  // 未注册题型没有作答控件，模型一律 null（只读兜底）
+  eq(modelFor('matching'), null);
+});
+
 test('界面层不再自带第二套判分实现', () => {
   const src = fs.readFileSync(path.join(JS_DIR, 'app.js'), 'utf8');
   const body = src.slice(src.indexOf('function judgeObjective'), src.indexOf('function judgeObjective') + 240);
@@ -444,13 +507,19 @@ test('导入 2.0 备份：数据键原样落地，并报告旧口径提示', () 
   eq(Backup.validate(v2), null, '2.0 备份不该被判为不合法');
 });
 
-test('3.0 备份的导出版本号读 config 的 BACKUP_VERSION', () => {
+test('备份的导出版本号读 config 的 BACKUP_VERSION', () => {
   const cfg = {};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'config.js'), 'utf8'), { window: cfg });
-  eq(cfg.EXAM_CONFIG.BACKUP_VERSION, '3.0', 'BACKUP_VERSION 应升到 3.0');
+  eq(cfg.EXAM_CONFIG.BACKUP_VERSION, '3.0', 'BACKUP_VERSION 是备份格式版本，3.x 内不再变');
   // viewVersion 必须**不动**：题库数据格式没变，这是「旧题库 JSON 无需重导」的前提
   eq(cfg.EXAM_CONFIG.VIEW_VERSION, '1.0.0', 'viewVersion 不该随应用版本一起动');
-  eq(cfg.EXAM_CONFIG.APP_VERSION, '3.0.0');
+  /* APP_VERSION 不钉具体数字：它每次发版都变，钉死只会让每次发版都要改测试
+     （那等于用测试去追一个会动的常量）。这里钉的是**形状 + 与三处一致性的前提**：
+     必须是 x.y.z，且主版本与 BACKUP_VERSION 同代。三处一致由 CI 单独把关。 */
+  assert(/^\d+\.\d+\.\d+$/.test(cfg.EXAM_CONFIG.APP_VERSION),
+    'APP_VERSION 必须是 x.y.z，实际 ' + cfg.EXAM_CONFIG.APP_VERSION);
+  eq(cfg.EXAM_CONFIG.APP_VERSION.split('.')[0], cfg.EXAM_CONFIG.BACKUP_VERSION.split('.')[0],
+    'APP_VERSION 与 BACKUP_VERSION 的主版本必须同代');
 });
 
 test('内置兜底题库与示例数据仍是合法 viewVersion 1.0.0（冷启动可直接练）', () => {

@@ -36,6 +36,17 @@
   }
 
   /**
+   * 判断题的标准答案键（'true' / 'false'），供界面标「正确答案是哪一项」。
+   * 必须与 judge 的 `!!item.answer` 同源 —— 界面把哪一项涂成绿色、就必须是判分
+   * 认作正确的那一项，否则会出现「横幅说答对、按钮却是红的」。
+   * @returns {string[]} 答案缺失时按 false 处理（与 judge 一致：`!!undefined` = false）
+   */
+  function stdTfKeys(item) {
+    if (!item) return [];
+    return [item.answer ? 'true' : 'false'];
+  }
+
+  /**
    * @param {object} item      题目条目（rawType / answer / options）
    * @param {string|null} choice    单选字母 或 判断的 'true' / 'false'
    * @param {string[]} [multiSel]   多选已选字母
@@ -65,5 +76,5 @@
     return sel.join(',') === std.join(',');                         // 漏选/多选/错选都为 false
   }
 
-  global.ExamJudge = { isObjective, judge, stdLetters, OBJECTIVE_TYPES };
+  global.ExamJudge = { isObjective, judge, stdLetters, stdTfKeys, OBJECTIVE_TYPES };
 })(typeof window !== 'undefined' ? window : globalThis);

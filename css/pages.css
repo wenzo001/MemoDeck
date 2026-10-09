@@ -28,7 +28,6 @@
   .md-sidebar { display: flex; position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); }
   .md-tabbar { display: none; }
   .md-sidebar .badge, .md-sidebar .count { display: inline-block; }
-  .toast { bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* 内容列在宽屏下不再无限加宽（§5.3：1440+ 内容区不加宽） */
@@ -357,7 +356,7 @@
   position: relative;
   flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 0;
-  padding: 8px 0 calc(120px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 0 calc(120px + var(--bottom-bar-lift));
   min-height: 400px;
   cursor: grab;
   touch-action: pan-y pinch-zoom;
@@ -426,14 +425,16 @@
 .md-study-swipe-hint.swipe-right { right: 24px; background: var(--md-judge-correct-surface); color: var(--md-judge-correct); }
 .md-study-swipe-hint.swipe-left { left: 24px; background: var(--md-judge-wrong-surface); color: var(--md-judge-wrong); }
 
-/* 底部固定操作区（§5.5：20 + env(safe-area-inset-bottom)，1px 顶描边不做浮层阴影） */
+/* 底部固定操作区（§5.5：20 + 安全区，1px 顶描边不做浮层阴影）。
+   抬起量与安全区由 --bottom-bar-lift / --bottom-safe 一处给（见 tokens.css），
+   免得每加一个底栏就漏一次「让位给底部导航」。 */
 .md-study-footer {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
+  left: 0; right: 0; bottom: var(--bottom-bar-lift);
   display: flex; gap: var(--sp-3); z-index: 35;
   background: var(--md-surface);
   border-top: 1px solid var(--md-border);
-  padding: var(--sp-3) max(var(--md-page-pad), calc((100% - 640px) / 2)) calc(20px + env(safe-area-inset-bottom, 0px));
+  padding: var(--sp-3) max(var(--md-page-pad), calc((100% - 640px) / 2)) calc(20px + var(--bottom-safe));
 }
 /* 移动端只有单一主按钮（§5.4）；背诵模式是两个自评动作，属例外，保持并排 */
 .md-study-pass-btn, .md-study-fail-btn {
@@ -532,11 +533,11 @@
 
 /* 考试底部操作区：桌面是「上一题 + 提交答案」双按钮（§5.4） */
 .md-exam-footer {
-  position: fixed; left: 0; right: 0; bottom: 0;
+  position: fixed; left: 0; right: 0; bottom: var(--bottom-bar-lift);
   display: flex; gap: 10px; align-items: center;
   background: var(--md-surface);
   border-top: 1px solid var(--md-border);
-  padding: var(--sp-3) max(var(--md-page-pad), calc((100% - 900px) / 2)) calc(20px + env(safe-area-inset-bottom, 0px));
+  padding: var(--sp-3) max(var(--md-page-pad), calc((100% - 900px) / 2)) calc(20px + var(--bottom-safe));
   z-index: 35;
 }
 .md-exam-footer .btn { flex-shrink: 0; }
@@ -711,7 +712,7 @@
   /* 移动端答题卡：折叠为从底部滑出的叠层（不是等比缩小的桌面左栏）。
      ⚠️ 必须显式清掉 top：桌面基线是 sticky; top，改 fixed 后 top 还在，
      top/bottom 同时指定时 top 赢 —— 实测面板会贴在 y=70 而不是从底部滑出。 */
-  .md-exam-main { flex-direction: column; align-items: stretch; gap: 10px; padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+  .md-exam-main { flex-direction: column; align-items: stretch; gap: 10px; padding-bottom: calc(104px + var(--bottom-bar-lift)); }
   .md-exam-question { flex: 1 1 auto; }
   .md-exam-sheet-toggle {
     display: flex; align-items: center; gap: 6px;
@@ -730,7 +731,7 @@
   .md-exam-sheet-toggle .arrow.up { transform: rotate(180deg); }
   .md-exam-sheet {
     position: fixed; top: auto;
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); left: 0; right: 0;
+    bottom: var(--bottom-bar-lift); left: 0; right: 0;
     width: 100%; max-height: 60vh;
     background: var(--md-surface); border-radius: var(--md-r-sheet) var(--md-r-sheet) 0 0;
     border: none; border-top: 1px solid var(--md-border);

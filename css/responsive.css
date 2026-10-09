@@ -34,7 +34,7 @@
 /* —— 430–559（折叠屏折叠态）：标准单列 ——
    顶部形态切换提示条与底部固定操作区都不可省（模板里常驻，这里只给间距）。 */
 @media (max-width: 559px) {
-  #app { padding-bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom, 0px)); }
+  #app { padding-bottom: calc(var(--bottom-bar-lift) + 96px); }
 }
 
 /* 形态标识只对「有可能是折叠屏」的宽度有意义：320/360 是直板机，
