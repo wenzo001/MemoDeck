@@ -31,9 +31,13 @@ window
 ├── ExamProgress   js/progress.js  跨会话学习进度与复习调度（SRS）
 ├── ExamSession    js/session.js   恢复点、分段、每日任务生成
 ├── ExamStats      js/stats.js     首页与趋势的统计聚合（纯函数）
-├── ExamBackup     js/backup.js    全量导出 / 合并或覆盖导入 / 清空
+├── ExamBackup     js/backup.js    全量导出 / 合并或覆盖导入 / 清空 / 旧备份归一
 ├── ExamAIPrompt   js/ai-prompt.js AI 转换提示词文本
-└── （Vue app）    js/app.js       Vue 应用：全部状态与交互
+├── ExamNav        js/navigation.js 3.0：导航模型 + 旧地址兼容表 + 旧开关键名映射（纯函数）
+├── ExamJudge      js/judge.js     3.0：判分口径唯一实现（从 app.js 的闭包里搬出来）
+├── ExamTypes      js/types.js     3.0：题型注册表 + 六种作答控件 + 未注册题型只读兜底
+├── ExamComponents js/components.js 3.0：跨页共享组件（判分横幅 / 参考答案 / 芯片 / 三联格 / 口径条）
+└── （Vue app）    js/app.js       Vue 应用：状态机与交互（判分、导航映射已外移）
 ```
 
 **加载顺序**（`index.html` 底部，顺序不可调换）：
@@ -42,16 +46,28 @@ window
 default-bank.js → vendor/vue.global.prod.js → config.js
 → core.js → store.js → leitner.js → wrongbook.js
 → migration.js → progress.js → utils.js → queue.js → ai-prompt.js
-→ session.js → stats.js → backup.js → app.js
+→ session.js → stats.js → backup.js
+→ navigation.js → judge.js → types.js → components.js → app.js
 ```
 
 依赖约束：`queue.js` 用 `utils.js` 的 shuffle；`session.js` 用 `progress.js` 的
-`getDueQuestions`，必须排在其后。
+`getDueQuestions`，必须排在其后；`core.js` 的 `normalizeBlanks` 在**运行时**读
+`ExamTypes.splitBlankAnswers`（读不到时有内置兜底实现），所以 `types.js` 只要排在
+`app.js` 之前即可，不必排在 `core.js` 之前。
 
 分层原则：`core / store / leitner / wrongbook / utils / queue / migration / progress /
-session / stats` **不依赖 DOM 和 Vue**，可以单独在 Node 里跑单元测试；只有 `js/app.js`
-碰 Vue 和界面。`app.js` 里凡是能脱离响应式系统成立的逻辑都往外挪——判分
-（`judgeObjective`）、取题（`ExamQueue`）、统计（`ExamStats`）都有唯一实现处且可单测。
+session / stats / navigation / judge / types / components` **不依赖 DOM 和 Vue**，
+可以单独在 Node 里跑单元测试；只有 `js/app.js` 碰 Vue 实例与页面状态。
+`app.js` 里凡是能脱离响应式系统成立的逻辑都往外挪——判分（`ExamJudge.judge`）、
+取题（`ExamQueue`）、统计（`ExamStats`）、导航与地址映射（`ExamNav`）
+都有唯一实现处且可单测。
+
+> **3.0 为什么把 `judgeObjective` 挪出 app.js**：DESIGN.md §4.3 写明判分是
+> 「全局唯一口径，不得产生第二套实现」。它原先住在 Vue setup 的闭包里，
+> 唯一实现是真的，但**只能靠手点界面验**——单测碰不到，等于最该钉死的一段没有防线。
+> 挪到 `js/judge.js` 后 `test/v3-compat.test.js` 直接打它，并且加了一条反向门禁：
+> 判分公式的两处签名若出现在 `judge.js` 以外的任何 js 文件里，测试就红。
+> 已做变异验证：把多选判分抄进 `stats.js` → 被抓到并指名文件。
 
 > **为什么不引 lodash**：本项目为零第三方运行时依赖（`file://` 离线 + 纯逻辑零依赖单测）。lodash 全量约 530KB，而实际只有洗牌/分组两类需求。于是自建约 2KB 的 `utils.js`，函数语义对齐 lodash 同名函数；将来确有大需求时可平滑换成 `vendor/lodash.min.js`。
 
@@ -68,13 +84,29 @@ session / stats` **不依赖 DOM 和 Vue**，可以单独在 Node 里跑单元�
                                                      ▼
                                               条目数组 items[]
                                                      │
-                        ┌────────────┬───────────────┼────────────┐
-                        ▼            ▼               ▼            ▼
-                    记忆闯关      摸底速览        分类考试      错题本
-                  (Leitner 队列) (顺序展示)    (筛选+随机)   (独立存储)
-              v2 追加：学习 / 练习 / 模拟考试 / 首页统计
-              取题统一走 ExamQueue，进度统一写 ExamProgress
+   3.0 入口（js/navigation.js 决定「哪个入口跑哪台状态机」）
+                        |
+     今日 --+-- 练习（六模式分段）--+-- 错题本 --+-- 题库
+            |        |              |           |
+            |   背诵 recite   ---- session mode: study
+            |   答题 answer   ----          : exercise
+            |   按题型自测 bytype ----      : category
+            |   模拟考试 mock   ----        : exam
+            |   浏览速览 browse ----        : preview
+            |   闯关队列 queue  ----        : practice
+            v
+        取题统一走 ExamQueue -> 判分统一走 ExamJudge -> 进度统一写 ExamProgress
+            |
+            +- 答对：Wrongbook.creditCorrectByGid（3.0 单一离开规则）
+            +- 答错：Wrongbook.add（gid 全局去重，重复入本状态打回 new）
 ```
+
+> **3.0 只重组了入口，没有动管线。** ExamQueue 的取题口径、ExamJudge 的判分口径、
+> ExamProgress 的状态机与 session mode 键名全部与 2.x 一致（DESIGN.md §9 第三步的硬要求：
+> 「迁移时保持原有取题管线与判分实现不变」）。上面那张「入口 -> 模式 -> session mode」的映射
+> 是本次重构唯一新增的间接层，它整个住在 js/navigation.js 里、可单测 —— 旧书签、旧恢复点、
+> 旧题库开关的兼容性全靠它，它一旦错就是这三类数据同时失效。
+
 
 ### 3.1 条目（item）结构
 
@@ -95,12 +127,27 @@ session / stats` **不依赖 DOM 和 Vue**，可以单独在 Node 里跑单元�
 
 | | 会话内 | 跨会话 |
 |---|---|---|
-| 模块 | `leitner.js`（记忆闯关、错题加强练习） | `progress.js`（学习 / 练习 / 模拟考试） |
+| 模块 | `leitner.js`（闯关队列、错题加强练习） | `progress.js`（背诵 / 答题 / 按题型自测 / 模拟考试） |
 | 掌握条件 | 记住一次即出队 | 连续答对 5 次 → `mastered` |
 | 答错处置 | 埋到 5~7 张之后重现 | `streak` 归零，下次立即复习 |
 
 两者互不干涉：闯关只管「这轮还出不出现」，progress 只管「什么时候该复习」。
-判分行为本身另见 [EXAM_JSON_SPEC.md §3.2](./EXAM_JSON_SPEC.md)。
+
+**3.0 把这条界线写进了界面词汇**（DESIGN.md §7.3）。代码里有两个不同概念都叫 `weak`，
+用户读到同一个词就会把两个数读成一个：
+
+| 归属 | 数据层取值 | 3.0 界面名 | 规则 |
+|---|---|---|---|
+| 跨会话记忆进度 | `new` / `learning` / `review` / `mastered` | 新题 / 学习中 / **需复习** / 已掌握 | 「需复习」= review 档 |
+| 错题本 | `new` / `learning` / `weak` / `mastered` | 新错 / 巩固中 / **模糊** / 已攻克 | 连对 2 次=模糊，连对 3 次移出=已攻克 |
+| 会话内队列 | —（不落盘） | **本轮攻克** | 原「一次即掌握」改名，明确不产生跨会话含义 |
+
+词表唯一出口是 `js/components.js` 的 `status-chip`（`set` 参数决定读哪张表），
+界面任何地方都不再手写这些词。
+**「当次答对」与「跨会话已掌握」是两个数、两个名字、不可相加** —— 这条口径必须出现在界面上。
+
+判分行为本身另见 [EXAM_JSON_SPEC.md §3.2](./EXAM_JSON_SPEC.md)，
+唯一实现是 `js/judge.js`。
 
 **数据源优先级**：localStorage 缓存 > `data.json`（仅 http/https）> 内置兜底题库。
 
@@ -165,7 +212,8 @@ MIN_FAIL_GAP = 5   // 答错后至少埋到 5 张之后（+0~2 随机），保�
 | `examSession:v1` | 恢复点（内部 version 2：按 mode 分桶 `resumes: { study, exercise, exam }`，考试桶含逐题答案快照 `answers`） | session.js |
 | `examSettings:v1` | 每日学习量等设置 | session.js |
 | `examLeitnerQueue:v1` | 闯关队列持久化 | leitner.js |
-| `memo:theme` / `memo:showDataPanel` | 主题与数据管理 Sheet 开关（后者 2.2.0 起默认收起） | app.js |
+| `memo:theme` | 主题偏好 `'auto'│'light'│'dark'`（3.0 起 `applyTheme` 还会把解析结果写进 `data-theme` 属性） | app.js |
+| `memo:practiceMode` | 3.0：练习页上次用的模式（`recite`/`answer`/`bytype`/`mock`/`browse`/`queue`） | app.js |
 
 > 备份（`js/backup.js`）导出的是**以上全部 `exam*` 键**，新增存储键时必须同步进去。
 >
@@ -173,20 +221,31 @@ MIN_FAIL_GAP = 5   // 答错后至少埋到 5 张之后（+0~2 随机），保�
 > `:v1`（经 `Wrongbook.list()`），历史上这里错读过 v2 快照导致角标与首页对不上。
 
 错题条目带 `source` 字段，取值即「在哪个模式答错的」，共五种：
-`study`（学习）/ `exercise`（练习）/ `practice`（记忆闯关）/ `preview`（摸底速览）/ `exam`（两类考试）。
-错题本按来源分 Tab，**Tab 列表由 `WRONG_SOURCES` 注册表派生**，只渲染真实有题的来源——
+`study`（背诵）/ `exercise`（答题）/ `practice`（闯关队列）/ `preview`（浏览速览）/
+`exam`（模拟考试与按题型自测）。**3.0 收敛了入口，但这五个值一个都没改** ——
+它们既存在错题条目里、又是恢复点的分桶键，改名等于丢数据。
+错题本按来源筛选，**列表由 `WRONG_SOURCES` 注册表派生**，只渲染真实有题的来源——
 新增模式时改这张表即可，不要再往模板里硬写按钮。
 
 **全局去重**：`wrongbook.add()` **优先按 `gid` 判重**（不看来源），同一道题只保留一条；
 无 gid 的老数据回退到「题目 id + rawType」。重复入库时刷新来源为最新出错场景、
 `wrongCount++`、`correctStreak` 归零、状态退回 `new`。
 
-**入库时机**：闯关「没记住」、学习「还不会」、练习/考试答错、模拟考试交卷判错，都由 `app.js`
-实时写入并刷新视图（不等流程跑完）。**未作答不计入错题本**。
+**入库时机**：闯关「没记住」、背诵「还不会」、答题/自测/考试答错、模拟考试交卷判错，
+都由 `app.js` 实时写入并刷新视图（不等流程跑完）。**未作答不计入错题本**。
 
-**移除时机**：仅限错题本内部，且**连续答对 3 次才自动移出**（`Wrongbook.markCorrect`
-状态机：1 次 `new`/`learning` → 2 次 `weak` → 3 次 `mastered` 并移除）；
-在其它模式答对不会移除。分类考试的「重新考试」走的是另一条路：答对即 `removeByItem` 立刻移出。
+**移出时机（3.0 收敛为一条规则）**：任何入口答对都计连对，累计连对 3 次自动移出，
+移出时**必须**告知原因。状态机：1 次 `new`/`learning` → 2 次 `weak`（界面叫「模糊」）
+→ 3 次 `mastered` 并移出（界面叫「已攻克」）。
+
+- 唯一落点是 `Wrongbook.creditCorrectByGid(gid)`，六个模式的答对路径全部走它；
+  不在错题本里的题它是 no-op，绝不因答对一道没错过的题而造记录。
+- 2.x 的三条并行规则已删两条：「其它入口答对不计次」改为计次；
+  **「错题重考答对 1 次即 `removeByItem` 立刻移出」的短路整条删除**
+  （它让重考成了一条比日常复习更宽松的出本通道）。
+  `catFromWrongbook` 这个标记还在，但只用于记录来源，不再改变离开规则。
+- 移出与手动删除都写 `history`（`{ gid, itemId, at, reason }`），
+  错题本的「已攻克」计数与移出原因文案都从它来。老数据没有该字段时按空数组读。
 
 ### 4.4 `queue.js` —— 取题管线
 
@@ -241,40 +300,87 @@ const wrongItems        = computed(() => wrongEntries.value.map(e => e.item));
 
 ## 六、样式约定
 
-v2.0 起为**六件套**（`index.html` 按此顺序引用）：
+3.0 起仍为**六件套**（`index.html` 按此顺序引用）：
 
 | 文件 | 职责 |
 |---|---|
-| `tokens.css` | Design Token、明暗两套变量、`#app`/`.container` 宽度约束 |
-| `components.css` | 通用组件（按钮、面板、卡片、Tab 导航、弹窗、Toast、错题条目、**作答控件**） |
-| `pages.css` | 各页面作用域样式，按 `md-study-` / `md-exercise-` / `md-exam-` 前缀隔离 |
-| `responsive.css` | 移动端断点覆盖（**全站唯一的断点出口**） |
-| `themes.css` | 深色模式与主题切换 |
-| `accessibility.css` | `prefers-reduced-motion` 等可访问性降级 |
+| `tokens.css` | **唯一**的浅色 token 声明处 + `--md-*` 语义层 + 2.x 短名兼容别名 + 全局布局防护 |
+| `components.css` | §4.1 组件族（主/次按钮、选项块、状态芯片、判分横幅、三联格、口径条、恢复卡、错题条目、分段控件、底部导航、侧栏、**作答控件**）+ §4.5 图标规则 |
+| `pages.css` | 四个一级页面的布局（`md-today-` / `md-study-` / `md-wrongbook` / `md-bank-` 前缀隔离）与 768+ 双栏 |
+| `responsive.css` | **七档断点表**（320/360/430/560/768/1024/1440）→ 只负责给 `--md-*` 布局 token 取值 |
+| `themes.css` | 3.0 起几乎为空：只有主题切换控件与三处读不到 token 的硬编码 |
+| `accessibility.css` | `prefers-reduced-motion` 降级 + 全局 `:focus-visible` 描边 |
 
 > v1 的单文件 `css/style.css` 已在 2.1.0 删除（长期不再被 `index.html` 引用）。
 
+### 6.1 3.0 的 token 架构（这一条改错了会全站漂移）
+
+- **浅色值只有 `tokens.css` 的 `:root` 一处；深色值只有 `html[data-theme="dark"]` 一处。**
+  2.x 有三份深色声明（`tokens.css` 的 `@media`、`themes.css` 的手动 dark、
+  `themes.css` 的 `@media :root`），同一个 HEX 写三遍，改一处漏两处。
+  3.0 的解法是让 `applyTheme()` **永远**把解析后的 `'light' | 'auto'→实际值'` 写进
+  `data-theme`（`js/app.js`），于是 token 层不再需要 `@media (prefers-color-scheme)`，
+  系统偏好与手动覆盖走同一条路径 —— 「系统 dark + 手动 light 漏深色」这一类 bug 从根上消失。
+  代价是首屏会闪一下：所以 `index.html` 的 `<head>` 里有一段内联脚本先落 `data-theme`。
+- **组件只准用语义 token（`--md-*`），不准写字面色。** 2.x 的短名
+  （`--primary` / `--surface` / `--text-main` …）保留为**兼容别名层**，一律 `var()` 指向
+  `--md-*`，不重复声明 HEX。新增组件请直接用 `--md-*`。
+- **`--primary` 在 3.0 指琥珀（唯一强调色），主操作是 `--md-ink`。**
+  两者必须分开：琥珀/绿/红/蓝四个语义档已被「到期、判对、判错、待自评」占满，
+  主按钮若也用琥珀就会和「今日到期」撞车（DESIGN.md §1.3 的关键取舍）。
+  看到 `--primary` 别以为是"主按钮色"。
+- **历史短名的语义被改过一处**：`--warn` 从橙色改成蓝色档
+  （§7.3 要求「需复习」走蓝，不给界面加第 5 个色相）。依赖它字面含义的规则都已改读 `--md-*`。
+
 约定不变：
 
-- **移动优先**：媒体查询用 `max-width` 向下覆盖，每个栅格都能塌缩为单列
-- **触摸目标 ≥ 44×44pt（iOS HIG）**，相邻目标间距 ≥ 8px。桌面用指针可以更小，所以
-  `.btn.small` / `.btn-text` / `.wb-tabs button` / `.per-chip` / `.tab-nav button` 的 44px
-  补偿统一写在 `responsive.css` 的 600px 块；表单控件（`.paper-switch select`、
-  `.cat-type-select`）与 `.btn` / `.src-actions input` 一样直接按 44px 全局设。
-  唯一例外是答题卡题号：桌面侧栏 5 列约 32px（指针操作可接受）。移动端**不是**自然达标 ——
-  `@media` 里原本固定 10 列，实测格子只有 27.5px（390 宽）/ 20.5px（320 宽），
-  现已改成 `repeat(auto-fill, minmax(44px, 1fr))`，格子恒 ≥44px、列数随宽度自适应
-- **可见焦点态**：统一 `:focus-visible` 描边，键盘可达一切交互元素
-- **尊重 `prefers-reduced-motion`**：动画降级为无过渡
-- **背景不用纯白/纯灰**：渐变打底营造纵深
+- **移动优先 + 断点从宽到窄书写**：媒体查询没有特异度，同一个属性写两遍时**后出现的赢**。
+  所以 `--md-page-pad` 的 20→18→16 三档必须按 `max-width: 559 / 429 / 359` 的顺序排，
+  窄屏写在后面。2.x 有过一条 `@media (max-width:559px){--md-page-pad:20px}` 排在
+  `max-width:359px` 之后、把 16px 顶掉的自伤写法。
+- **触摸目标 ≥ 44×44pt（iOS HIG），相邻目标间距 ≥ 8px —— 这一条不分宽度全局生效。**
+  2.x 把 44px 补偿写在 `responsive.css` 的窄屏块里，宽屏上是空的：实测主题切换按钮
+  在桌面上仍是 28×28，等于门禁在最不该省的地方失守。3.0 起 `.btn` / `.icon-btn` /
+  `.theme-btn` / `button.md-chip` / `.per-chip` / `.md-study-radio` / 输入控件都直接按 44 设。
+  两个例外按设计稿保留：答题卡题号在桌面侧栏 5 列约 32px（指针操作可接受）、
+  状态芯片**视觉**高 22（但可点的芯片 `button.md-chip` 命中区仍抬到 44）。
+- **可见焦点态**：统一 `:focus-visible` 描边（`accessibility.css` 全局给），键盘可达一切交互元素
+- **尊重 `prefers-reduced-motion`，但不是"全部关掉"**：DESIGN.md §8 的降级口径是
+  「取消位移与脉冲，保留 ≤100ms 透明度变化，进度条直接跳变」。
+  2.x 写的 `* { transition:none !important; animation:none !important }` 连淡入都杀，界面变硬切。
+  ⚠️ 另外「答对自动前进」的 0.6 秒是 JS 定时器、是节奏控制不是装饰动效，
+  降级时**不能**把它一起关掉。
+- **背景不用纯白/纯灰，也不用渐变**：3.0 反过来——DESIGN.md §7.1 把「渐变背景、玻璃拟态」
+  列为禁止项（与"可信、专业"冲突，且离线性能差）。2.x 的
+  `.md-home-today` 渐变卡、`.md-study-progress-bar` 的 primary→success 渐变已删，改琥珀实色。
+  唯一保留的半透明是吸顶应用栏的 `--chrome-bg` + `backdrop-filter`。
+- **卡片只用于真正独立的重复对象，不套卡片**（§5.4）；层级靠 间距 < 相关项 < 分组 < 区块 表达
 - **固定底栏必须配底部留白**：`.md-study-stage` / `.md-exam-main` 都留了
   `padding-bottom`，否则最后一个选项会被 `position: fixed` 的操作栏压住
 - **跨页面复用的组件不带页面前缀**：作答控件 `.md-opt-list` / `.md-opt` / `.md-opt-key` /
-  `.md-tf` / `.md-tf-btn` / `.md-feedback` 定义在 `components.css`，练习、模拟考试、分类考试
-  三处共用同一套类名与状态语义（`selected` → `correct` → `wrong`，按此顺序声明以便后者压过前者）。
+  `.md-tf` / `.md-tf-btn` 与判分横幅 `.md-judge-banner` 定义在 `components.css`，
+  答题、按题型自测、模拟考试共用同一套类名与状态语义
+  （`selected` → `missed`/`correct`/`wrong`，按此顺序声明以便后者压过前者）。
+  **判断/单选/多选必须共用同一个 `judge-result` 组件**（§4.3），差异只允许在判分函数。
   只有单页面专属的样式才用 `md-<页面>-` 前缀
+- **形状即语义，不可为视觉统一互换**（§4.2）：单选圆点、多选方框、填空带序号输入框、
+  判断两个大按钮。`.md-opt.is-radio` / `.is-check` 由 `js/types.js` 的题型注册表给，
+  界面层不再按题型手写 `v-if` 选形状
+- **图标按 §4.5 五条走**：容器给底色与圆角、图标只有字形；一律 flex 居中，禁止用
+  `padding`/绝对定位去"挪"；一个图标 = 一个内联 SVG，不许把底色和字形拆成两个并列元素；
+  描边型图标的圆底由容器给。自检：给容器临时加 `.icon-debug`（`components.css` 里，
+  高对比底色）看字形是否偏离几何中心，22 / 24 / 30 / 44 四档各跑一次
 - **对比度按 WCAG AA 正文 4.5:1 校验**：站内这些文字都是 11–16px 加粗，按 WCAG 定义不算
-  「大文本」（要 ≥18.66px 粗体），所以适用 4.5 这一档，不是 3.0
+  「大文本」（要 ≥18.66px 粗体），所以适用 4.5 这一档，不是 3.0。DESIGN.md §2.3 的比值是
+  手算结果，**未在真实渲染像素上复核**，改色时不要把它当实测值引用
+- **题干与选项正文在任何断点都不截断、不缩字**（§8 铁律）。容器挤压时先隐藏次要元信息
+  （`.md-hide-narrow` / `.md-home-est` / `.md-study-timer`）、再降内边距、最后才动分栏。
+  唯一允许截断的是错题条目的题干预览（2 行 + 「展开全文」按钮），因为它有明确的展开出口
+- **`responsive.css` 不是最后一份 CSS，覆盖主题层规则要抬一档特异度**：加载顺序是
+  tokens → components → pages → responsive → **themes** → accessibility。断点里写
+  `.theme-btn { … }` 会被 `themes.css` 的同特异度规则后来吃掉。
+  3.0 顺手把这个坑填了：`.theme-btn` 的尺寸只在 `themes.css` 一处声明（含 44px），
+  不再需要在断点里覆盖它。但**规则本身仍然成立** —— 新增跨文件覆盖时先数加载顺序。
 - **共享组件的移动端紧凑档写在 `responsive.css`**：`.md-opt` 46px / `.md-opt-key` 22px /
   `.md-tf-btn` 14px 集中在那里，跟组件定义分处两地但按「断点改尺寸」这一条规则可寻。
   页面级断点目前仍有 3 处留在 `pages.css`（首页 / 学习 / 考试），实测没有被后面的基础规则
@@ -301,24 +407,36 @@ v2.0 起为**六件套**（`index.html` 按此顺序引用）：
    后代都拿它的 scrollport 当参照而永不吸附（旧 `.tab-nav` 的 sticky 就这样白写了几个版本）。
    `clip` 只裁不滚，viewport 仍是滚动主体；`hidden` 保留在前一行作为 Safari < 16 的退路。
    新增吸顶元素前先确认这条：`getComputedStyle(祖先).overflowX !== 'hidden'`
-- **「数据管理」是浮层 Sheet，不是内联面板**：`.sheet-scrim`（`v-show` 控制，关闭即
-  `display:none`）+ `.panel.sheet`。≤600px 底部滑出、≥601px 居中对话框，点背板 / `Esc` 关闭。
-  新增这类模态编辑时照这一套走，并且**必须**在三个 `*KeyDown` 的 `overlayIsOpen()` 里登记，
-  否则背景页的快捷键会在浮层开着时抢走事件（学习卡被翻走 / 考试被交卷）
+- **浮层只剩两个：「更多」抽屉与通用对话框**。3.0 把「数据管理」从浮层 Sheet 升级成了
+  「题库」一级页面，剩下的浮层是 320–359 的 `.sheet-scrim` + `.panel.sheet`（更多抽屉，
+  ≤559px 底部滑出、≥560px 居中对话框）与 `.modal-mask` + `.modal-box`
+  （通用确认对话框、AI 提示词）。背板一律 `v-show`（关闭即 `display:none`），不用 `opacity` 隐藏。
+  新增模态时**必须**在两处登记：`overlayIsOpen()`（让背景页快捷键让路，否则浮层开着时按 Enter
+  会翻走背后的学习卡、考试里按 Esc 会直接交卷）与 `overlayKeyDown()` 的 `Esc` 关闭栈序
+  （对话框 → AI 模态 → 更多抽屉）。不可逆操作（交卷、清空错题本、手动删除错题、清空全部数据）
+  走通用 `openDialog()`，正文点名对象与后果（§4.1），不再用 `window.confirm`
 - **`responsive.css` 不是最后一份 CSS，覆盖主题层规则要抬一档特异度**：加载顺序是
-  tokens → components → pages → responsive → **themes** → accessibility。所以断点里写
-  `.theme-btn { width: 44px }` 会被 `themes.css` 的 `.theme-btn { width: 28px }` 同特异度
-  后来者吃掉（实测移动端仍是 28×28）。改写成 `.theme-switch .theme-btn`（`0,2,0`）才生效。
-  往 `responsive.css` 里加覆盖前，先确认被覆盖的那条规则在不在 `themes.css`
+  tokens → components → pages → responsive → **themes** → accessibility。往
+  `responsive.css` 里加覆盖前，先确认被覆盖的那条规则在不在 `themes.css` 里。
+  （2.x 的真实案例：断点里写 `.theme-btn { width: 44px }` 被 `themes.css` 的
+  `.theme-btn { width: 28px }` 同特异度后来者吃掉，实测移动端仍是 28×28。
+  3.0 把这个坑填法是**取消重复声明**而不是抬特异度 —— `.theme-btn` 的尺寸只在
+  `themes.css` 一处给，且直接就是 44px，不再需要断点覆盖。）
 - **界面外壳只有 `.appchrome` 一块**：吸顶的 `.appchrome`（毛玻璃 + `--chrome-bg`）里装
   `.appbar`（标题 = 当前入口名 `activeTabLabel`，不是应用名；右侧只放 `.icon-btn` 图标按钮）
   和 `.tab-nav`。导航栏不放宣传语、不放带文字的灰胶囊 —— iOS 的 nav bar 只回答「你在哪个屏」。
   `.tab-nav` 自己不再 sticky（嵌套 sticky 无意义，吸附交给外壳）；
   ⚠️ 不要把 `position: fixed` 的元素挪进 `.appchrome`，`backdrop-filter` 会给它们建立包含块
-- **全站不用 emoji 图标**（2.2.0 起 `index.html` 里 emoji 归零）：矢量符号集中在
-  `index.html` 顶部的 `<svg class="icon-defs">` 符号表（41 个 24×24、`stroke: currentColor`），
-  用 `<use href="#i-xxx">` 引用。Tab 图标按 `#i-<tabKey>` 自动取，所以**新增入口只要补一个
-  同名 `<symbol>`**。题库 `features[].icon` 若显式给了图标仍优先生效（对外契约不变）。
+- **全站不用 emoji 图标**（2.2.0 起外壳 emoji 归零，3.0 连默认文案 emoji 也清了）：
+  矢量符号集中在 `index.html` 顶部的 `<svg class="icon-defs">` 符号表
+  （46 个 24×24、`stroke: currentColor`），用 `<use href="#i-xxx">` 引用。
+  一级导航图标按 `#i-<navKey>` 自动取（`today` / `practice` / `wrongbook` / `bank` / `more`），
+  练习模式图标按 `PRACTICE_MODES[].icon` 指定，所以**新增入口只要补一个同名 `<symbol>`**。
+  题库 `features[].icon` 自 3.0 起**不再被消费**（键仍解析，只为不让老 JSON 变不合法）。
+  §4.5 的三条构建规则：容器负责底色与圆角、图标只负责字形并一律 flex 居中
+  （禁止用 padding 或绝对定位去"挪"）；一个图标 = 一个内联 SVG，不许把底色和字形
+  拆成两个并列元素；描边型图标的圆底由容器给。
+  自检：给容器临时加 `.icon-debug`（高对比底色）看字形是否偏心，22/24/30/44 四档各跑一次。
   两条配套约定：① `.icon { margin-right: .375em }` 默认给「图标 + 文字」留缝，
   flex-gap 容器和纯图标容器要在后面那条重置列表里清掉，否则间距翻倍或图标偏心；
   ② 判定/状态类图标用 `:href="cond ? '#i-a' : '#i-b'"` 绑定，**带 `>` 或 `<` 的比较必须
@@ -377,11 +495,15 @@ DevVue.compile(document.querySelector('#app').innerHTML)
 - **远程导入依赖 CORS**：目标服务器不允许跨域时，改用「粘贴 JSON」或「选择文件」。
 - **`file://` 下无 `data.json` 自动加载**：浏览器限制，属预期行为；PWA 也只在 http(s) 下生效。
 - **`features` 开关只对两个模式生效**：`practice` / `preview` 可被 `enabled: false` 隐藏，
-  首页 / 学习 / 练习 / 模拟考试 / 分类考试 / 错题本是无条件挂载的。
+  在 3.0 里的效果是「隐藏练习页分段控件中的闯关队列 / 浏览速览两档」
+  （映射唯一住在 `js/navigation.js` 的 `modeVisibleByFeature()`，缺键 = 可见）。
+  今日 / 练习 / 错题本 / 题库四个一级导航、以及背诵 / 答题 / 按题型自测 / 模拟考试
+  四个模式是无条件挂载的，`features` 隐藏不了。
 
 **功能语义**
-- **主观题没有自动判分**：填空 / 简答 / 专项题一律用户自评，`｜` 多空分隔符在判分路径上
-  没有消费者（详见 EXAM_JSON_SPEC.md §3.2.2）。
+- **主观题没有自动判分**：填空 / 简答 / 专项题一律用户自评，没有文本比对
+ （不忽略大小写、无同义词、无逐空对齐）。`|` 分隔符只在**导入时**被拆成逐空答案，
+  判分路径与界面层都不消费它（详见 EXAM_JSON_SPEC.md §3.2.2）。
 - **两套"掌握"模型并存**：闯关的「一次即掌握」与 progress 的「连对 5 次」互不干涉，
   见 §3.2。这不算 bug，但意味着「掌握了多少」在两个入口下数字不同。
 - **恢复点按模式分桶**：`examSession:v1` 内部为 `{ version: 2, resumes: { study, exercise, exam } }`，
