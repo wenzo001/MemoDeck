@@ -17,8 +17,9 @@ jobs:
           node-version: '22'
 
       - name: 运行单元测试
-        # 两个套件都要跑：extensions.test.js 覆盖 progress / session / stats /
-        # migration / 错题本 v2 / Leitner v2，只跑 core 会让一半契约失守
+        # 五个套件都要跑：core / queue / extensions 覆盖数据层契约，
+        # v3-compat 覆盖 3.0 的导航映射、判分口径唯一与错题离开规则，
+        # icons 覆盖 §4.5 图标零外边距表的双向差集。少跑任何一个都会有一半契约失守。
         run: npm test
 
       # config.js 是版本号唯一来源，但 SW 是独立 worker 读不到 window、

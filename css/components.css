@@ -26,12 +26,18 @@
 }
 /* 规则 1/2：容器负责底色与圆角，图标只负责字形，一律 flex 居中，
    禁止用 padding 或绝对定位去「挪」图标（改尺寸必然再次错位）。
-   这些容器都已经是 display:flex + align/justify:center，图标在其中不需要外边距。 */
-.tab-nav button .icon, .md-nav-item .icon, .md-home-card-title .icon,
-.md-home-quick-btn .icon, .icon-btn .icon, .theme-btn .icon,
-.md-judge-badge .icon,
-.md-study-summary-emoji .icon, .perfect-emoji .icon, .resume-icon .icon,
-.md-chip .icon, .md-caliber .icon { margin-right: 0; }
+   —— .icon 自带 margin-right 是给「图标 + 文字」的行排间距用的，居中的小方框不吃这一套：
+   单边外边距会把字形从几何中心推出去，这正是 §4.5 说的「图标不居中」的根因
+   （22 档的 .md-opt-key 实测被推走 4.125px → 字形偏心 2.07px）。
+   [icon-box] 字形独占的方形容器：字形零外边距，间距由容器自己给。
+   已经改用 gap 排布的图标行也归在这里，免得 gap 与 margin 叠加成双倍间距。
+   新增同类容器必须同时加进这一条 —— test/icons.test.js 会双向核对，漏了会红。 */
+.md-opt-key > .icon, .md-judge-badge > .icon, .md-resume-icon > .icon,
+.md-blank-index > .icon, .answer-index > .icon, .md-chip > .icon,
+.icon-btn > .icon, .theme-btn > .icon, .md-resume-close > .icon,
+.md-nav-item .icon, .md-home-card-title .icon,
+.md-study-summary-emoji .icon, .perfect-emoji .icon,
+.md-caliber .icon { margin-right: 0; }
 
 /* 自检（§4.5）：把 .icon-debug 加到任意图标容器上，底色会变成高对比色，
    字形若偏离几何中心一眼可见。22 / 24 / 30 / 44 四档都要跑一遍。 */
