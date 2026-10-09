@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <!-- ⚠️ 升级时与 config.js APP_VERSION + service-worker.js VERSION 三处同步 -->
-  <meta name="version" content="3.0.1">
+  <meta name="version" content="3.0.2">
   <title>MemoDeck · 安全生产题库</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/components.css">
@@ -816,20 +816,25 @@
               <!-- ===== 浏览速览（原「摸底速览」：降级为不判分、不写进度、只读） ===== -->
               <div v-show="practiceMode === 'browse'" class="md-preview">
                 <caliber-note icon="i-info">浏览模式：不判分、不写长期进度、没有恢复点。要练请切「背诵」或「答题」。</caliber-note>
-                <div class="exam-item" v-for="(item, index) in bank" :key="item.gid || index">
-                  <div class="wrong-head">
-                    <span class="exam-tag">{{ item.typeLabel }}</span>
-                    <span class="exam-meta">{{ index + 1 }} / {{ bank.length }} · {{ item.paper }}</span>
-                  </div>
-                  <div class="exam-q">{{ item.question }}</div>
-                  <div class="btn-row">
-                    <button class="btn-text small" @click="togglePreview(index)">
-                      <svg class="icon" aria-hidden="true"><use :href="previewRevealed[index] ? '#i-eye-slash' : '#i-preview'"/></svg>{{ previewRevealed[index] ? '隐藏答案' : '查看答案' }}
-                    </button>
-                    <button class="btn-text small" @click="addPreviewToWrongbook(item)"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>记入错题本</button>
-                  </div>
-                  <answer-view v-if="previewRevealed[index]" :item="item"></answer-view>
-                </div>
+                <!-- 千题级：两千行不再一次性挂载，只渲染视口附近那几十行（js/virtual.js） -->
+                <window-list :items="bank" :row-height="150" :key-of="keyOfItem">
+                  <template #row="{ item, index }">
+                    <div class="exam-item">
+                      <div class="wrong-head">
+                        <span class="exam-tag">{{ item.typeLabel }}</span>
+                        <span class="exam-meta">{{ index + 1 }} / {{ bank.length }} · {{ item.paper }}</span>
+                      </div>
+                      <div class="exam-q">{{ item.question }}</div>
+                      <div class="btn-row">
+                        <button class="btn-text small" @click="togglePreview(index)">
+                          <svg class="icon" aria-hidden="true"><use :href="previewRevealed[index] ? '#i-eye-slash' : '#i-preview'"/></svg>{{ previewRevealed[index] ? '隐藏答案' : '查看答案' }}
+                        </button>
+                        <button class="btn-text small" @click="addPreviewToWrongbook(item)"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>记入错题本</button>
+                      </div>
+                      <answer-view v-if="previewRevealed[index]" :item="item"></answer-view>
+                    </div>
+                  </template>
+                </window-list>
               </div>
 
               <!-- ===== 闯关队列（原「记忆闯关」；features.practice.enabled=false 时整个模式隐藏） ===== -->
@@ -928,26 +933,31 @@
               <div class="md-home-empty-sub">答错的题会自动记到这里，累计连对 3 次自动移出。</div>
             </div>
 
-            <div class="wb-item" v-for="e in wrongFiltered" :key="e.id">
-              <div class="wb-item-head">
-                <span class="src-tag">{{ sourceLabel(e.source) }}</span>
-                <!-- 错题本四档：新错/巩固中/模糊/已攻克（与记忆四档绝不同名，§7.3）
-                     set 选的是**词表**（memory | wrong | session），不是状态值——
-                     传成状态值会静默回落到记忆表：new→「新题」、weak→「需复习」 -->
-                <status-chip :kind="e.status || 'new'" set="wrong"></status-chip>
-                <span class="wb-item-stats">
-                  <span class="wb-err-count" v-if="e.wrongCount > 1">出错 {{ e.wrongCount }} 次</span>
-                  <span class="wb-streak" v-if="e.correctStreak > 0">连对 {{ e.correctStreak }}</span>
-                </span>
-              </div>
-              <div class="wb-q" :class="{ 'is-open': wbOpen[e.id] }">{{ e.item.q }}</div>
-              <button class="wb-expand" v-if="!wbOpen[e.id]" @click="wbToggle(e.id)">展开全文</button>
-              <answer-view :item="e.item"></answer-view>
-              <div class="select-row" style="margin-top:10px;">
-                <button class="btn-text small" @click="wrongMarkMastered(e.id)"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>标记为已攻克</button>
-                <button class="btn-text small" @click="askRemoveWrong(e)"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>手动删除</button>
-              </div>
-            </div>
+            <!-- 错题本可能到几百条，与浏览列表共用同一个窗口化实现 -->
+            <window-list :items="wrongFiltered" :row-height="140" :key-of="keyOfEntry">
+              <template #row="{ item: e }">
+                <div class="wb-item">
+                  <div class="wb-item-head">
+                    <span class="src-tag">{{ sourceLabel(e.source) }}</span>
+                    <!-- 错题本四档：新错/巩固中/模糊/已攻克（与记忆四档绝不同名，§7.3）
+                         set 选的是**词表**（memory | wrong | session），不是状态值——
+                         传成状态值会静默回落到记忆表：new→「新题」、weak→「需复习」 -->
+                    <status-chip :kind="e.status || 'new'" set="wrong"></status-chip>
+                    <span class="wb-item-stats">
+                      <span class="wb-err-count" v-if="e.wrongCount > 1">出错 {{ e.wrongCount }} 次</span>
+                      <span class="wb-streak" v-if="e.correctStreak > 0">连对 {{ e.correctStreak }}</span>
+                    </span>
+                  </div>
+                  <div class="wb-q" :class="{ 'is-open': wbOpen[e.id] }">{{ e.item.q }}</div>
+                  <button class="wb-expand" v-if="!wbOpen[e.id]" @click="wbToggle(e.id)">展开全文</button>
+                  <answer-view :item="e.item"></answer-view>
+                  <div class="select-row" style="margin-top:10px;">
+                    <button class="btn-text small" @click="wrongMarkMastered(e.id)"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>标记为已攻克</button>
+                    <button class="btn-text small" @click="askRemoveWrong(e)"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>手动删除</button>
+                  </div>
+                </div>
+              </template>
+            </window-list>
           </section>
 
           <!-- ============ 题库（数据接入 + 手动加题 + 导出备份 + 外观，一个二级页） ============ -->
@@ -1152,6 +1162,7 @@
   <script src="js/navigation.js"></script>
   <script src="js/judge.js"></script>
   <script src="js/types.js"></script>
+  <script src="js/virtual.js"></script>
   <script src="js/components.js"></script>
   <script src="js/app.js"></script>
 

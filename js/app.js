@@ -1717,6 +1717,12 @@
         const hit = WRONG_SOURCES.find(x => x.key === s);
         return hit ? hit.label : s;
       }
+      /* window-list 的行 key。必须给真标识而不是下标：窗口滑动时下标复用会让
+         Vue 直接改已有行的内容而不是移动节点 —— 行内 DOM 越多，这一下越贵。
+         写成方法而不是模板里的箭头函数：模板属性值里出现 => 会被某些 HTML 处理
+         工具注入属性而破坏表达式，CI 有守卫（见 ARCHITECTURE §五）。 */
+      function keyOfItem(it, i) { return (it && it.gid) || i; }
+      function keyOfEntry(e, i) { return (e && e.id) || i; }
       function makeEnvelope(source, url, data) {
         return { source, url: url || '', fetchedAt: new Date().toISOString(), data };
       }
@@ -2443,7 +2449,7 @@
         resetPractice, mark, togglePreview, addPreviewToWrongbook,
         toggleCatType, selectAllTypes, startCat, catSubmit, catSelfJudge, catNext, catPrev,
         catRestart, addCustomQuestion, isObjective, isRegisteredType,
-        sourceLabel,
+        sourceLabel, keyOfItem, keyOfEntry,
         wrongRemove, wrongClear, startWrongPractice, wrongMark, startWrongExam,
         wrongMarkMastered, askRemoveWrong, askClearWrongbook,
         copyAiPrompt, downloadAiPrompt,

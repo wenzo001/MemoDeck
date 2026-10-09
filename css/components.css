@@ -911,3 +911,18 @@ textarea.ai-prompt:focus-visible { outline: none; box-shadow: var(--focus-ring);
 
 /* 键位徽标只有一处实现：.md-opt-kbd（见上）与 1024+ 的 .md-hotkeys 面板。
    原先这里还有一份 .md-kbd，模板从不引用——同一件事留两个类名必然漂移，已删。 */
+
+/* ============ 长列表窗口化（§3.3 千题级） ============ */
+/* 外框高度恒定（= 全部行的估算总高），内块用 transform 位移到当前窗口的位置。
+   为什么不用「上下两个占位条撑高度」：改占位条高度会让整篇文档重新布局，
+   实测把滚动帧 p95 从 17.7ms 打到 33/61ms；transform 只走合成，不触发布局。 */
+.wl { position: relative; }
+.wl-rows { position: absolute; top: 0; left: 0; right: 0; }
+
+/* 行包装必须是 flow-root：.exam-item / .wb-item 都带 margin-bottom，而外边距会
+   折叠到父盒之外 —— 那样量到的高度不含外边距，每行少 10–14px，
+   滚到几百行之后视觉位置与滚动位置整体错位（这正是窗口化最容易翻车的地方）。
+   flow-root 让每行成为独立 BFC，把外边距收进盒内，量到多少就是占位多少。
+   contain 把每行的布局与绘制关在自己的盒子里：窗口移动时要重排的只有进出那几行，
+   不必连带整块。两者都只影响这一步的性能，不改变任何尺寸。 */
+.wl-row { display: flow-root; contain: layout paint; }

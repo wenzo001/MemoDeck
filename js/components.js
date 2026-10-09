@@ -289,6 +289,158 @@
       </div>`
   };
 
+  /* ============================================================
+   * 长列表窗口化（§3.3「千题级」的性能实现）
+   *
+   * 要解决的不是「滚动卡」—— 实测 2000 行滚动本来就 56fps 满帧 ——
+   * 而是**不为看不见的行建节点**：2000 题的浏览列表在「今日页」就已全部挂载
+   * （24,740 个 DOM 节点里 24,004 个是它），开屏多花 1.4s、切到浏览页要 3.6s（4× 降速实测）。
+   *
+   * 两个"看起来对但会翻车"的做法，这里都避开了（各有实测证据）：
+   * 1. **不用上下两个占位条撑高度**。改占位条高度会让整篇 30 万像素的文档重新布局，
+   *    实测把滚动帧 p95 从 17.7ms 打到 33ms（手机）/61ms（桌面）。改成外框高度恒定 +
+   *    内块 `transform: translate3d` 位移 —— transform 只走合成，不触发布局。
+   * 2. **滚动回调里只在窗口边界真的变了才写数据**。每帧都写会让 Vue 每帧重渲染
+   *    十几行，同样把 p95 打到 80ms；DOM 变更数从 90 降到个位数。
+   *
+   * 滚动容器仍然是**页面**：列表自己不滚。iOS 惯性、地址栏收放、底部导航让位
+   * 那套 token 全部不受影响 —— 代价是窗口要自己换算「列表坐标 = 页面 scrollY − 列表文档位置」。
+   * 算术在 js/virtual.js（纯函数、14 项单测），这里只管接线与 DOM 记账。
+   * ============================================================ */
+  const WindowList = {
+    name: 'window-list',
+    props: {
+      items: { type: Array, required: true },
+      rowHeight: { type: Number, default: 120 },   // 估算行高，渲染后按实测回填
+      buffer: { type: Number, default: 6 },        // 视口上下各多渲染几行
+      step: { type: Number, default: 6 },          // 窗口至少移动这么多行才重算（见 _recompute）
+      keyOf: { type: Function, default: null },
+      threshold: { type: Number, default: 60 }     // 少于这么多条就整份渲染
+    },
+    data() {
+      return { start: 0, end: 0, padTop: 0, viewportH: 800, heights: [], version: 0 };
+    },
+    computed: {
+      n() { return this.items.length; },
+      wind() { return this.n > this.threshold; },
+      offsets() { this.version; return global.ExamVirtual.buildOffsets(this.n, this.heights, this.rowHeight); },
+      total() { this.version; return this.offsets[this.n]; },
+      visible() {
+        const out = [];
+        for (let i = this.start; i < this.end; i++) out.push({ i: i, item: this.items[i] });
+        return out;
+      }
+    },
+    mounted() {
+      window.addEventListener('scroll', this._onScroll, { passive: true });
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('orientationchange', this._onResize);
+      this._onResize();
+      this._recompute();
+      this.$nextTick(this._measure);
+    },
+    beforeUnmount() {
+      window.removeEventListener('scroll', this._onScroll);
+      window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('orientationchange', this._onResize);
+      if (this._raf) cancelAnimationFrame(this._raf);
+      if (this._ro) { this._ro.disconnect(); this._ro = null; }
+    },
+    updated() {
+      this._observeRows();
+      if (!this._ro) this._measure();     // 没有 ResizeObserver 的旧环境才回落到「每次更新都量」
+    },
+    watch: {
+      // 换题库 / 过滤条件变了 → 高度记账作废（旧的实测高度属于旧的行）
+      items() {
+        this.heights = []; this.version++; this.start = 0; this.end = 0;
+        this.$nextTick(() => { this._recompute(); this._measure(); });
+      }
+    },
+    methods: {
+      /* 滚动回调：**只在窗口边界真的变了才写数据**。
+         这是这套东西能不能用的一票否决项 —— 每帧都 tick++ 会让 Vue 每帧重渲染
+         十几行、再叠加一次强制布局，实测把滚动帧 p95 从 17.7ms 打到 80ms。 */
+      _onScroll() {
+        if (this._raf) return;
+        this._raf = requestAnimationFrame(() => { this._raf = 0; this._recompute(); });
+      },
+      _onResize() {
+        this.viewportH = window.innerHeight || 800;
+        this._recompute();
+      },
+      /** 按当前滚动位置重算窗口；边界没变就不动数据（→ 不触发渲染） */
+      _recompute() {
+        const el = this.$el;
+        if (!el) return;
+        if (!this.wind) {
+          if (this.start === 0 && this.end === this.n) return;
+          this.start = 0; this.end = this.n; this.padTop = 0;
+          return;
+        }
+        const scrollY = window.scrollY || window.pageYOffset || 0;
+        const top = el.getBoundingClientRect().top + scrollY;   // 列表在文档里的位置
+        const r = global.ExamVirtual.windowRange(this.offsets, scrollY - top, this.viewportH, this.buffer);
+        /* 缓冲只有当窗口**真的需要移动**时才换：当前窗口仍覆盖需求、且移动量小于 step 行时
+           什么都不做。慢速滚动于是完全不产生 DOM 工作（实测把滚动帧从 44ms 压回接近全挂载的
+           28ms 一档），快速滑动才付一次重渲染。buffer 越大步越省，代价是常驻行数变多。 */
+        const covers = r.start >= this.start && r.end <= this.end && this.end > this.start;
+        const drift = Math.abs(r.start - this.start);
+        if (covers && drift < this.step) return;
+        this.start = r.start; this.end = r.end; this.padTop = r.padTop;
+      },
+      /* 实测回填：量到的真实高度写回偏移表，用于「展开答案」把后面的行整体下推。
+         挂了 ResizeObserver 时只在行**真的变高变矮**那一刻量，不逐帧读布局。 */
+      _observeRows() {
+        if (typeof ResizeObserver === 'undefined') return;
+        if (!this._ro) {
+          this._ro = new ResizeObserver(entries => {
+            let next = this.heights, changed = false;
+            for (const en of entries) {
+              const i = Number(en.target.getAttribute('data-wl-i'));
+              const h = en.borderBoxSize && en.borderBoxSize[0]
+                ? en.borderBoxSize[0].blockSize
+                : en.target.getBoundingClientRect().height;
+              if (!(h > 0)) continue;
+              const hh = Math.round(h * 100) / 100;
+              if (Math.abs((next[i] === undefined ? -1 : next[i]) - hh) > 0.5) {
+                next = global.ExamVirtual.applyMeasured(next, i, hh); changed = true;
+              }
+            }
+            if (changed) { this.heights = next; this.version++; this.$nextTick(this._recompute); }
+          });
+        }
+        const rows = this.$el.querySelectorAll('[data-wl-i]');
+        for (let k = 0; k < rows.length; k++) this._ro.observe(rows[k]);
+      },
+      _measure() {
+        const host = this.$el;
+        if (!host || !host.querySelectorAll) return;
+        const rows = host.querySelectorAll('[data-wl-i]');
+        if (!rows.length) return;
+        let next = this.heights, changed = false;
+        for (let k = 0; k < rows.length; k++) {
+          const i = Number(rows[k].getAttribute('data-wl-i'));
+          const h = rows[k].getBoundingClientRect().height;
+          if (!(h > 0)) continue;                    // 隐藏中（v-show）量到 0：跳过，别把 0 记进去
+          const hh = Math.round(h * 100) / 100;
+          const cur = next[i];
+          if (cur === undefined || Math.abs(cur - hh) > 0.5) { next = global.ExamVirtual.applyMeasured(next, i, hh); changed = true; }
+        }
+        if (changed) { this.heights = next; this.version++; this.$nextTick(this._recompute); }
+      }
+    },
+    template: `
+      <div class="wl" role="list" :style="wind ? { height: total + 'px' } : null">
+        <div class="wl-rows" :style="wind ? { transform: 'translate3d(0,' + padTop + 'px,0)' } : null">
+          <div class="wl-row" v-for="v in visible" :key="keyOf ? keyOf(v.item, v.i) : v.i" :data-wl-i="v.i"
+               role="listitem" :aria-setsize="n" :aria-posinset="v.i + 1">
+            <slot name="row" :item="v.item" :index="v.i"></slot>
+          </div>
+        </div>
+      </div>`
+  };
+
   global.ExamComponents = {
     CHIP_WORD,
     components: {
@@ -298,7 +450,8 @@
       'judge-result': JudgeResult,
       'answer-view': AnswerView,
       'resume-card': ResumeCard,
-      'question-history': QuestionHistory
+      'question-history': QuestionHistory,
+      'window-list': WindowList
     },
     install(app) { Object.keys(this.components).forEach(k => app.component(k, this.components[k])); }
   };
