@@ -256,7 +256,8 @@ memodeck/
 │   ├── queue.test.js              # 取题管线测试（21 项，含 48 组合不变式遍历）
 │   ├── extensions.test.js         # 扩展测试（progress/session/stats/migration/wrongbook，41 项）
 │   ├── v3-compat.test.js          # 3.0 兼容与规则测试（41 项：导航映射、逐空拆分、题型注册、单一离开规则、命名消歧、判分口径唯一性、模板接线守卫）
-│   └── icons.test.js              # §4.5 图标构建规则的静态守卫（6 项：零外边距名单与模板双向差集、四档 22/24/30/44 各有主人）
+│   ├── icons.test.js              # §4.5 图标构建规则的静态守卫（6 项：零外边距名单与模板双向差集、四档 22/24/30/44 各有主人）
+│   └── virtual.test.js            # 长列表窗口化的算术（14 项：偏移表、二分定位、窗口区间、稀疏记账合同）
 ├── docs/
 │   ├── USAGE.md            # 使用说明
 │   ├── ARCHITECTURE.md     # 架构设计（面向二次开发）
@@ -417,7 +418,7 @@ migration 写、供导出用）、学习进度 `examProgress:v1`、会话恢复�
 本地验证：
 
 ```bash
-# 单元测：纯逻辑与静态文本，零依赖、零框架、零构建（五个套件共 135 项）
+# 单元测：纯逻辑与静态文本，零依赖、零框架、零构建（六个套件共 149 项）
 npm test
 
 # 等价于
@@ -427,7 +428,7 @@ node test/core.test.js && node test/queue.test.js && node test/extensions.test.j
 python3 -m http.server 8000   # 打开 http://localhost:8000
 ```
 
-推送后会跑 CI，九道检查：单元测试（五个套件 135 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
+推送后会跑 CI，九道检查：单元测试（六个套件 149 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
 JS 语法、Vue 模板表达式安全（防白屏）、关键文件完整、文档链接可达、CSS 变量都有定义、对比度不变量。
 规则见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)，本地可直接复现。
 
