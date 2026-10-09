@@ -1,17 +1,54 @@
 /* ============================================================
- * MemoDeck · Accessibility
- * prefers-reduced-motion
+ * MemoDeck 3.0 · Accessibility
+ *
+ * prefers-reduced-motion 降级（DESIGN.md §8）：
+ *   - 取消全部位移与脉冲（transform 类动效）
+ *   - 仅保留 ≤100ms 的透明度变化
+ *   - 进度条改为直接跳变（宽度不做补间）
+ *   - 形态切换提示条改为直接出现，不滑入
+ *   - 「答对自动前进」的 0.6 秒停留保留 —— 它是 JS 定时器，是节奏控制不是装饰动效，
+ *     所以这里不能顺手把 window 的定时器一起关掉。
+ *
+ * 2.x 写的是 `* { transition: none !important; animation: none !important; }`，
+ * 那会把透明度淡入也一并杀掉，界面变成硬切；3.0 按上面的口径重写。
  * ============================================================ */
-
-/* ============ 减少动效 ============ */
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  /* 位移类关键帧全部直接落到终态 */
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
+    transition-duration: 100ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 进度条与填充：直接跳变，不补间 */
+  .progress-fill, .bar-fill, .progress-bar, .md-home-today-bar .bar-fill {
+    transition: none !important;
+  }
+  /* 形态切换提示条、答题卡、抽屉：改为直接出现 */
+  .md-form-toast, .md-exam-sheet, .sheet, .sheet-scrim, .modal-mask, .md-study-card-front .card-inner {
+    animation: none !important;
+    transform: none !important;
+  }
+  /* 数字滚动脉冲、到期徽章脉冲 */
+  .md-triplet-num.is-rolling { animation: none !important; }
 }
 
+/* 焦点可见（验收硬门槛：全部交互键盘可达且焦点可见）。
+   :focus-visible 保证鼠标点击不出现描边，键盘操作一定有描边。 */
+:focus-visible { outline: none; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible, label:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 
-/* ============================================================
- * 深色模式（跟随系统 Apple HIG dark tokens）
- * 只覆盖 tokens + 几处非变量硬编码（var(--fill-primary) 在深色下刺眼）
- * ============================================================ */
-
-
+/* 仅用颜色承载的信息一律补文字/形状线索（§2.4）。
+   这条是防御性的：若哪个组件漏了非颜色线索，屏幕阅读器仍能读到 aria-label。 */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}

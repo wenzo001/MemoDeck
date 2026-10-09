@@ -19,6 +19,19 @@
   const Progress = global.ExamProgress;
   const Session = global.ExamSession;
   const Stats = global.ExamStats;
+  // 3.0 新增：题型注册表 + 共享组件（js/types.js、js/components.js）
+  const Types = global.ExamTypes;
+  const UIComponents = global.ExamComponents;
+
+  /* ============ 3.0 导航模型（DESIGN.md §5.1：8 入口 → 4 一级导航） ============
+     表与解析逻辑都在 js/navigation.js（纯函数、可在 Node 单测）。这里只留引用：
+     映射表放两份必然漂移，而它一错就是「旧书签 + 旧恢复点 + 旧题库开关」同时失效。 */
+  const Nav = global.ExamNav;
+  const Judge = global.ExamJudge;
+  const NAV_ITEMS = Nav.NAV_ITEMS;
+  const NARROW_NAV = Nav.NARROW_NAV;
+  const PRACTICE_MODES = Nav.PRACTICE_MODES;
+
 
   // 运行配置见 config.js（defaultRemoteUrl / jsonManagerUrl 均可外部覆盖）
   const CFG = global.EXAM_CONFIG || {};
@@ -28,7 +41,19 @@
   const app = createApp({
     setup() {
       /* ============ 基础 / 数据源 ============ */
-      const activeTab = ref('home');               // 阶段 1：默认首页；其余：practice | exam | category | wrongbook
+      const activeTab = ref('today');               // 3.0 一级导航：today | practice | wrongbook | bank
+      const practiceMode = ref(localStorage.getItem('memo:practiceMode') || 'recite');
+      const showMoreSheet = ref(false);             // 320–359 的「更多」抽屉
+      const wbOpen = reactive({});                  // 错题条目「展开全文」
+      // 通用确认对话框（交卷确认 / 清空全部数据 等不可逆操作走同一个组件）
+      const dialog = ref(null);                     // { title, body, okText, danger, resolve }
+      const isNarrow = ref(!!(window.matchMedia && window.matchMedia('(max-width: 359px)').matches));
+      const isWide = ref(!!(window.matchMedia && window.matchMedia('(min-width: 1024px)').matches));
+      // 折叠屏形态（§8）：560 是导航形态切换点，768 是双栏切换点
+      const formFactor = ref('');
+      const formHint = ref('');
+      let formHintTimer = null;
+      let lastFormBucket = '';
       const sourceMeta = ref({ label: '加载中…', cls: 'default', url: '', detail: '' });
       const currentBank = ref({ meta: {}, features: {}, papers: [] });
       const currentPaperId = ref('');
@@ -37,8 +62,8 @@
       const remoteUrl = ref('');
       const pasteText = ref('');
       const managerUrl = ref(JSON_MANAGER_URL);
-      // 默认收起：内联展开的数据面板曾把整屏内容顶下去，手机首屏只剩后台表单。
-      const showDataPanel = ref(localStorage.getItem('memo:showDataPanel') === '1');
+      // 3.0：原「数据管理」浮层已并入「题库」一级页面；showDataPanel / memo:showDataPanel
+      // 这两个键不再被读写。留着只会让人以为还有一个可展开的后台面板（死控件）。
       const confirmClearAll = ref(false); // 备份区二次确认
       const dataBusy = ref(false);
       const dragActive = ref(false);
@@ -47,20 +72,25 @@
       let toastTimer = null;
 
       /* ============ 主题 ============ */
-      // 'auto' | 'light' | 'dark'
+      // 'auto' | 'light' | 'dark'（持久化键 memo:theme 与取值域从 2.x 沿用，不改）
       const themeMode = ref(localStorage.getItem('memo:theme') || 'auto');
+      function systemPrefersDark() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+      // 3.0：data-theme 永远被写成解析后的 'light' | 'dark'，不再靠「移除属性 + 媒体查询」。
+      // auto 模式由这里读系统偏好并落属性，于是 token 层的深色声明只需要
+      // `html[data-theme="dark"]` 一处（见 css/tokens.css），2.x 的三份重复与
+      // 「系统 dark + 手动 light 漏深色」这一类 bug 一并消失。
       function applyTheme() {
         var mode = themeMode.value;
-        if (mode === 'auto') {
-          document.documentElement.removeAttribute('data-theme');
-        } else {
-          document.documentElement.setAttribute('data-theme', mode);
-        }
+        var resolved = mode === 'auto' ? (systemPrefersDark() ? 'dark' : 'light') : mode;
+        document.documentElement.setAttribute('data-theme', resolved);
         localStorage.setItem('memo:theme', mode);
+        return resolved;
       }
       // 初始化立即应用
       applyTheme();
-      // 跟随系统偏好变化（auto 模式下实时切换）
+      // 跟随系统偏好变化（auto 模式下实时重新解析）
       if (window.matchMedia) {
         var mql = window.matchMedia('(prefers-color-scheme: dark)');
         mql.addEventListener && mql.addEventListener('change', function () {
@@ -79,8 +109,7 @@
         return m && m.title ? String(m.title) : '';
       }
 
-      /* —— watchers：面板/主题状态持久化 —— */
-      Vue.watch(showDataPanel, function (v) { localStorage.setItem('memo:showDataPanel', v ? '1' : '0'); });
+      /* —— watchers：主题状态持久化 —— */
       Vue.watch(themeMode, function () { applyTheme(); });
 
       /* —— 会话计时器：study / exercise / exam 三处原本逐字重复 —— */
@@ -177,9 +206,10 @@
       const catInput = ref('');
       const catChoice = ref(null);
       const catMultiSel = ref([]);
+      const catBlanks = ref([]);                   // 填空/专项逐空答案（§4.2）
       const catRevealed = ref(false);
       const catFeedback = ref(null);                 // { correct }
-      const catFillInput = ref(null);                // 填空题多空答案输入框元素（插入分隔符用）
+      // 3.0：填空题逐空答案改由 catBlanks 承载，旧的 catFillInput（插入分隔符用）已删除
       const catStats = reactive({ total: 0, right: 0, wrong: 0 });
       const catFromWrongbook = ref(false); // 当前考试是否来自错题本（答对自动移除错题）
       const catSnapshots = ref({});        // 每题作答快照：{ index: {input,choice,multiSel,revealed,feedback} }
@@ -370,6 +400,8 @@
           studyPassCount.value++;
           if (e && e.streak > studyMaxStreak.value) studyMaxStreak.value = e.streak;
           if (prevStatus !== 'mastered' && e && e.status === 'mastered') studyNewMastered.value++;
+          // 3.0 §7.4.1：背诵自评「记住了」同样计入错题本连对（2.x 这里不计次）
+          _creditWrongbookCorrect(item.gid);
         } else {
           Progress.markFail(item.gid);
           studyFailCount.value++;
@@ -409,8 +441,8 @@
           studyClock.stop();
           studyMode.value = 'setup';
           refreshResume();
-          switchTab('home');
-          setTimeout(() => switchTab('study'), 50);
+          switchTab('today');
+          setTimeout(() => { switchTab('practice'); setPracticeMode('recite'); }, 50);
         } else {
           studyMode.value = 'setup';
         }
@@ -430,6 +462,13 @@
       const studyOnSwipeMove = studySwipe.onMove;
       const studyOnSwipeEnd = studySwipe.onEnd;
 
+      // 当前练习页是不是这个模式（3.0：模式在练习页内部切换，不再是独立 tab）
+      function modeActive(sessionMode) {
+        if (activeTab.value !== 'practice') return false;
+        const m = PRACTICE_MODES.find(x => x.key === practiceMode.value);
+        return !!m && m.sessionMode === sessionMode;
+      }
+
       // 多行/复合输入控件里，Enter 是用户的编辑键不是导航键：简答题 textarea 内
       // 回车要换行，选项下拉展开时 Enter 不能把焦点抢走。
       // 单行 input（填空作答）不在此列——那里 Enter→提交/下一题本来就是想要的。
@@ -439,17 +478,17 @@
         return el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable === true;
       }
 
-      // 浮层（数据管理 sheet / AI 提示词）打开时，背景页的快捷键全部让路 ——
-      // 否则在 sheet 里按 Enter 会把背后的学习卡翻过去，考试里按 Esc 会直接交卷。
+      // 浮层（确认对话框 / 「更多」抽屉 / AI 提示词）打开时，背景页的快捷键全部让路 ——
+      // 否则在对话框里按 Enter 会把背后的卡翻过去，考试里按 Esc 会直接交卷。
       function overlayIsOpen() {
-        return showDataPanel.value === true || showAiModal.value === true;
+        return dialog.value !== null || showAiModal.value === true || showMoreSheet.value === true;
       }
 
-      // 桌面端也支持：点击"记住了/还不会"按钮 或 键盘 1/2 或 ←/→
+      // 桌面端也支持：点击「记住了/还不会」按钮 或 键盘 1/2 或 ←/→
       function studyKeyDown(e) {
         if (isEditableTarget(e)) return;
         if (overlayIsOpen()) return;
-        if (activeTab.value !== 'study') return;
+        if (!modeActive('study')) return;
         if (studyMode.value !== 'running') return;
         if (e.key === ' ' || e.key === 'Enter') {
           if (!studyShowAnswer.value) { studyShowAnswer.value = true; e.preventDefault(); }
@@ -501,7 +540,9 @@
       const exerciseAnswerSubmitted = ref(false);
       const exerciseChoice = ref(null);       // 单选/判断
       const exerciseMultiSel = ref([]);       // 多选
-      const exerciseInput = ref('');          // 填空/简答
+      const exerciseInput = ref('');          // 简答
+      const exerciseBlanks = ref([]);         // 填空/专项：逐空数组（§4.2 决策，界面不出现 |）
+      const exerciseSelfResult = ref(null);   // 自评结果：null=未评
 
       // 每题判分结果
       const exerciseFeedback = ref(null);     // { correct: true/false, reveal: true }
@@ -566,30 +607,29 @@
       const exerciseWrongbookCount = computed(() =>
         queueCountOf(Object.assign(exerciseCfg(), { scope: 'wrongbook' })));
 
-      // 判分核心（纯函数，不读写任何 ref）——学习/练习/模拟考试/分类考试共用这一份
-      // 未作答必须先判错：否则判断题 answer=false 时 (null==='true')===false 会白送一分
+      // 判分核心：本体在 js/judge.js（纯逻辑、可在 Node 单测）。
+      // 学习/练习/模拟考试/分类考试共用这一份，§4.3 要求「不得产生第二套实现」，
+      // 所以这里只转发，不在此处再写一遍分支。
       function judgeObjective(cur, choice, multiSel) {
-        if (!cur || !isObjective(cur.rawType)) return false;
-        if (cur.rawType === 'true_false') {
-          if (choice !== 'true' && choice !== 'false') return false;
-          return (choice === 'true') === !!cur.answer;
-        }
-        if (cur.rawType === 'single_choice') {
-          if (!choice) return false;
-          return choice === cur.answer;
-        }
-        const sel = Array.isArray(multiSel) ? multiSel : [];
-        if (!sel.length) return false;
-        const std = (Array.isArray(cur.answer) ? cur.answer : []).slice().sort().join(',');
-        return sel.slice().sort().join(',') === std;
+        return Judge.judge(cur, choice, multiSel);
       }
 
       function resetExerciseAnswer() {
         exerciseChoice.value = null;
         exerciseMultiSel.value = [];
         exerciseInput.value = '';
+        exerciseBlanks.value = [];
+        exerciseSelfResult.value = null;
         exerciseAnswerSubmitted.value = false;
         exerciseFeedback.value = null;
+      }
+
+      // 逐空作答的显示文本与「已填」判定（§4.2：界面不出现分隔符，这里只为记录与展示）
+      function blanksText(arr) {
+        return (Array.isArray(arr) ? arr : []).map(s => String(s == null ? '' : s).trim()).filter(Boolean).join(' / ');
+      }
+      function blanksFilled(arr) {
+        return (Array.isArray(arr) ? arr : []).some(s => String(s == null ? '' : s).trim().length > 0);
       }
 
       // ====== setup → running ======
@@ -629,29 +669,61 @@
       }
 
       // ====== running ======
+      // 当前题能不能提交（§4.2：未作答直接提交按判错处理，不送分 —— 这里只拦「什么都没选」，
+      // 不做「必须作答才能提交」以外的任何判断）
+      const exerciseCanSubmit = computed(() => {
+        const cur = exerciseCurrentItem.value;
+        if (!cur) return false;
+        if (cur.rawType === 'single_choice' || cur.rawType === 'true_false') return !!exerciseChoice.value;
+        if (cur.rawType === 'multi_choice') return exerciseMultiSel.value.length > 0;
+        if (cur.rawType === 'fill_blank' || cur.rawType === 'special_fill_blank') return blanksFilled(exerciseBlanks.value);
+        if (cur.rawType === 'essay') return String(exerciseInput.value || '').trim().length > 0;
+        // 未注册题型不提供作答控件（§4.2 DefaultRenderer：不判分、不写进度）
+        return false;
+      });
+
+      // 逐空作答 → 写回给判分与记录的「学生答案」文本（只用于展示与备份，不参与判分）
+      function exerciseStudentAnswerText(cur) {
+        if (!cur) return '';
+        if (cur.rawType === 'fill_blank' || cur.rawType === 'special_fill_blank') return blanksText(exerciseBlanks.value);
+        if (cur.rawType === 'essay') return exerciseInput.value;
+        if (cur.rawType === 'multi_choice') return exerciseMultiSel.value.slice().sort().join('、');
+        return exerciseChoice.value || '';
+      }
+
       function exerciseSubmit() {
         const cur = exerciseCurrentItem.value;
         if (!cur || exerciseAnswerSubmitted.value) return;
+        // 未注册的题型：不提供作答、不判分、不写进度（§4.2）
+        if (Types && !Types.isRegistered(cur.rawType)) return;
 
         if (isObjective(cur.rawType)) {
-          // 客观题：系统自动判分
+          // 客观题：系统自动判分，判分口径仍是全局唯一的那一份 judgeObjective
           const correct = judgeObjective(cur, exerciseChoice.value, exerciseMultiSel.value);
-          _exerciseRecord(cur, correct, null); // 客观题的"你的答案"直接在 answer-view 里展示
+          _exerciseRecord(cur, correct, exerciseStudentAnswerText(cur));
           exerciseFeedback.value = { correct: correct };
-        } else {
-          // 主观题（填空/简答/特填）：不自动判分，先看答案，用户自评
           exerciseAnswerSubmitted.value = true;
-          return;
+          // §4.3 前进行为：答对自动前进（0.6 秒是节奏控制，不是装饰动效，
+          // reduced-motion 下也不取消）；答错必须停在本题直到用户看懂。
+          if (correct) {
+            clearTimeout(autoNextTimer);
+            autoNextTimer = setTimeout(() => {
+              if (exerciseMode.value === 'running' && exerciseAnswerSubmitted.value) exerciseNext();
+            }, 600);
+          }
+        } else {
+          // 主观题（填空/简答/专项）：不自动判分，先给参考答案，用户自评
+          exerciseAnswerSubmitted.value = true;
         }
-        exerciseAnswerSubmitted.value = true;
       }
 
       // 用户对主观题自评（答对/答错）
       function exerciseSelfJudge(correct) {
         const cur = exerciseCurrentItem.value;
         if (!cur || !exerciseAnswerSubmitted.value) return;
-        // 主观题先展示标准答案，让用户自己对照自评
-        _exerciseRecord(cur, correct, exerciseInput.value);
+        exerciseSelfResult.value = correct;
+        // 自评结果同时喂给共享的判分结果组件——界面只有一套结果展示（§4.3）
+        _exerciseRecord(cur, correct, exerciseStudentAnswerText(cur));
         exerciseFeedback.value = { correct: correct };
       }
 
@@ -663,10 +735,13 @@
           const e = Progress.markPass(cur.gid);
           exercisePassCount.value++;
           if (prevStatus !== 'mastered' && e && e.status === 'mastered') exerciseNewMastered.value++;
+          // 3.0 §7.4.1：任何入口答对都计错题本的连对（2.x 这里什么都不做，
+          // 于是「在答题模式里答对一道错题」永远不推进它的离开进度）
+          _creditWrongbookCorrect(cur.gid);
         } else {
           Progress.markFail(cur.gid);
           exerciseFailCount.value++;
-          const added = Wrongbook.add(cur, 'exercise', studentAnswer, false);
+          Wrongbook.add(cur, 'exercise', studentAnswer, false);
           exerciseNewWrong.value++;
           loadWrongbook();
         }
@@ -697,7 +772,7 @@
           exerciseClock.stop();
           exerciseMode.value = 'setup';
           refreshResume();
-          switchTab('home'); setTimeout(() => switchTab('exercise'), 50);
+          switchTab('today'); setTimeout(() => { switchTab('practice'); setPracticeMode('answer'); }, 50);
         } else {
           exerciseMode.value = 'setup';
         }
@@ -734,16 +809,46 @@
       const exerciseOnSwipeMove = exerciseSwipe.onMove;
       const exerciseOnSwipeEnd = exerciseSwipe.onEnd;
 
-      // 键盘
+      // 键盘（§4.2 / 设计稿「键盘：1–9 选择 · Enter 提交 · ← 上一题」）
+      // 数字键按选项在 A–Z 里的顺序映射：1→A、2→B……9→I。
+      function pickByNumberKey(e, item, onPick) {
+        if (!item || !item.options) return false;
+        const n = parseInt(e.key, 10);
+        if (!(n >= 1 && n <= 9)) return false;
+        const keys = Object.keys(item.options);
+        const k = keys[n - 1];
+        if (!k) return false;
+        e.preventDefault();
+        onPick(k);
+        return true;
+      }
+
       function exerciseKeyDown(e) {
         if (isEditableTarget(e)) return;
         if (overlayIsOpen()) return;
-        if (activeTab.value !== 'exercise') return;
+        if (!modeActive('exercise')) return;
         if (exerciseMode.value !== 'running') return;
+        const cur = exerciseCurrentItem.value;
         if (exerciseAnswerSubmitted.value) {
-          if (e.key === 'Enter' || e.key === ' ') { exerciseNext(); e.preventDefault(); }
-        } else {
-          if (e.key === 'Enter') { exerciseSubmit(); e.preventDefault(); }
+          // 答对是自动前进的；这里剩下的是「答错后看懂了再走」和「主观题自评后前进」
+          if (e.key === 'Enter' || e.key === ' ') { clearTimeout(autoNextTimer); exerciseNext(); e.preventDefault(); }
+          else if (e.key === '1' || e.key === '2') {
+            if (!exerciseFeedback.value && cur && !isObjective(cur.rawType)) exerciseSelfJudge(e.key === '1');
+          }
+          return;
+        }
+        if (e.key === 'Enter') { exerciseSubmit(); e.preventDefault(); return; }
+        if (cur && (cur.rawType === 'single_choice' || cur.rawType === 'multi_choice')) {
+          pickByNumberKey(e, cur, k => {
+            if (cur.rawType === 'single_choice') exerciseChoice.value = k;
+            else {
+              const i = exerciseMultiSel.value.indexOf(k);
+              if (i >= 0) exerciseMultiSel.value.splice(i, 1); else exerciseMultiSel.value.push(k);
+            }
+          });
+        } else if (cur && cur.rawType === 'true_false') {
+          if (e.key === '1') { exerciseChoice.value = 'true'; e.preventDefault(); }
+          else if (e.key === '2') { exerciseChoice.value = 'false'; e.preventDefault(); }
         }
       }
 
@@ -955,24 +1060,78 @@
           _examMarkAnswered(cur.gid);
         }
       });
+      // 多选的逐题答案（考试过程中可回看改答，所以存进 examAnswers 而不是独立 ref）
+      const examMultiSel = computed({
+        get() {
+          const cur = examCurrentItem.value;
+          if (!cur) return [];
+          const a = examAnswers[cur.gid];
+          return a && Array.isArray(a.multiSel) ? a.multiSel : [];
+        },
+        set(val) {
+          const cur = examCurrentItem.value;
+          if (!cur) return;
+          _examGetAnswer(cur.gid).multiSel = Array.isArray(val) ? val.slice() : [];
+          _examMarkAnswered(cur.gid);
+        }
+      });
+      /**
+       * 填空题的逐空答案（§4.2）。
+       * 2.x 存在这里的是一整条 `input` 字符串（多空用 | 手写分隔），
+       * 读到旧恢复点/旧备份时按同一个分隔规则拆成逐空 —— 界面层从此不再出现分隔符，
+       * 但历史数据不会因此丢答案。
+       */
+      const examBlanks = computed({
+        get() {
+          const cur = examCurrentItem.value;
+          if (!cur) return [];
+          const a = examAnswers[cur.gid];
+          if (!a) return [];
+          if (Array.isArray(a.blanks)) return a.blanks;
+          if (a.input) {
+            const split = Types && Types.splitBlankAnswers ? Types.splitBlankAnswers : (s => String(s).split(/[|｜]/));
+            return split(a.input);
+          }
+          return [];
+        },
+        set(val) {
+          const cur = examCurrentItem.value;
+          if (!cur) return;
+          const a = _examGetAnswer(cur.gid);
+          a.blanks = Array.isArray(val) ? val.slice() : [];
+          // 同步一份 join 后的 input：老代码路径（_examAnswerText、备份、错题记录）仍读它
+          a.input = blanksText(a.blanks);
+          _examMarkAnswered(cur.gid);
+        }
+      });
 
       function _examAnswerText(a) {
         if (!a) return '';
+        if (Array.isArray(a.blanks) && a.blanks.some(s => String(s || '').trim())) return blanksText(a.blanks);
         if (a.input) return a.input;
-        if (Array.isArray(a.multiSel) && a.multiSel.length) return a.multiSel.join(',');
+        if (Array.isArray(a.multiSel) && a.multiSel.length) return a.multiSel.join('、');
         return a.choice || '';
       }
 
       // 交卷（结束 running → summary）
       // 三分法：客观题即时判分；主观题答了→转待自评（此刻不算错）；未答→不计分不入错题本
-      function examSubmit() {
+      // 确认走应用内对话框（§8：1024+ 交卷确认改对话框；正文点名题数与后果，§4.1）
+      async function examSubmit() {
         if (examSubmitted.value) return;
         const blank = examQueueGids.value.filter(g => !(examAnswers[g] && examAnswers[g].answered));
-        const tip = blank.length
-          ? '还有 ' + blank.length + ' 题未作答，确定交卷吗？'
-          : '确认交卷并判分？';
-        if (!confirm(tip)) return;
+        const ok = await openDialog({
+          title: '确认交卷？',
+          body: blank.length
+            ? '还有 ' + blank.length + ' 题未作答。未作答的题不计分、不写入错题本、不更新记忆进度。交卷后判分不可撤回。'
+            : '全部 ' + examQueueGids.value.length + ' 题已作答。交卷后客观题立即判分、主观题转入待自评，判分结果不可撤回。',
+          okText: '交卷',
+          cancelText: '再检查一下'
+        });
+        if (!ok) return;
+        _finishExam(blank);
+      }
 
+      function _finishExam(blank) {
         let pass = 0, fail = 0;
         const wrong = [];
         const pending = [];
@@ -981,18 +1140,21 @@
           if (!item) return;
           const a = examAnswers[gid] || {};
           if (!a.answered) return;
+          const shown = _examAnswerText(a);
           if (isObjective(item.rawType)) {
             if (judgeObjective(item, a.choice || null, a.multiSel || [])) {
               pass++;
               Progress.markPass(gid);
+              // 3.0 §7.4.1：考试答对也计错题本连对
+              _creditWrongbookCorrect(gid);
             } else {
               fail++;
               Progress.markFail(gid);
-              Wrongbook.add(item, 'exam', _examAnswerText(a), false);
-              wrong.push({ gid, item, userAnswer: a, isCorrect: false, isObjective: true });
+              Wrongbook.add(item, 'exam', shown, false);
+              wrong.push({ gid, item, userAnswer: a, displayAnswer: shown, isCorrect: false, isObjective: true });
             }
           } else {
-            pending.push({ gid, item, userAnswer: a, isCorrect: null, isObjective: false, subjective: true });
+            pending.push({ gid, item, userAnswer: a, displayAnswer: shown, isCorrect: null, isObjective: false, subjective: true });
           }
         });
         examPassCount.value = pass;
@@ -1001,7 +1163,7 @@
         examPendingItems.value = pending;
         examBlankItems.value = blank.map(g => {
           const item = bank.value.find(it => it.gid === g);
-          return { gid: g, item: item, userAnswer: examAnswers[g] || {} };
+          return { gid: g, item: item, userAnswer: examAnswers[g] || {}, displayAnswer: '' };
         }).filter(e => e.item);
         examSubmitted.value = true;
         loadWrongbook();      // 角标与来源计数即时刷新
@@ -1022,10 +1184,11 @@
         if (correct) {
           examPassCount.value++;
           Progress.markPass(gid);
+          _creditWrongbookCorrect(gid);   // §7.4.1：评定为答对同样计连对
         } else {
           examFailCount.value++;
           Progress.markFail(gid);
-          Wrongbook.add(entry.item, 'exam', _examAnswerText(entry.userAnswer), false);
+          Wrongbook.add(entry.item, 'exam', entry.displayAnswer || _examAnswerText(entry.userAnswer), false);
           entry.isCorrect = false;
           examWrongItems.value.push(entry);
           loadWrongbook();
@@ -1065,14 +1228,35 @@
         }
       }
 
-      // 键盘（考试中 Enter = 下一题，方便快速跳过）
+      // 键盘（考试中 Enter = 下一题，方便快速跳过；1–9 选选项）
       function examKeyDown(e) {
         if (isEditableTarget(e)) return;
         if (overlayIsOpen()) return;
-        if (activeTab.value !== 'exam') return;
+        if (!modeActive('exam')) return;
         if (examMode.value !== 'running' || examSubmitted.value) return;
-        if (e.key === 'Enter') { examNext(); e.preventDefault(); }
-        else if (e.key === 'Escape') { examSubmit(); e.preventDefault(); }
+        if (e.key === 'Enter') { examNext(); e.preventDefault(); return; }
+        if (e.key === 'ArrowLeft') { examPrev(); e.preventDefault(); return; }
+        const cur = examCurrentItem.value;
+        if (cur && (cur.rawType === 'single_choice' || cur.rawType === 'multi_choice')) {
+          pickByNumberKey(e, cur, k => {
+            const a = _examGetAnswer(cur.gid);
+            if (cur.rawType === 'single_choice') a.choice = k;
+            else {
+              const arr = Array.isArray(a.multiSel) ? a.multiSel.slice() : [];
+              const i = arr.indexOf(k);
+              if (i >= 0) arr.splice(i, 1); else arr.push(k);
+              arr.sort();
+              a.multiSel = arr;
+            }
+            _examMarkAnswered(cur.gid);
+          });
+        } else if (cur && cur.rawType === 'true_false') {
+          if (e.key === '1' || e.key === '2') {
+            _examGetAnswer(cur.gid).choice = e.key === '1' ? 'true' : 'false';
+            _examMarkAnswered(cur.gid);
+            e.preventDefault();
+          }
+        }
       }
 
       // ====== 生命周期更新（把 examKeyDown 也加进去） ======
@@ -1087,14 +1271,20 @@
         // 刷新 / 关标签页前落一次考试答案，弥补「键入不即时写」的窗口
         window.addEventListener('beforeunload', _examPersist);
         window.addEventListener('hashchange', onHashChange);
-        const initialTab = tabFromHash();
-        if (initialTab) activeTab.value = initialTab;
+        // 形态切换（折叠屏折叠/展开、浏览器窗口缩放）只改可见形态，不动任何状态
+        updateFormFactor();
+        window.addEventListener('resize', updateFormFactor);
+        window.addEventListener('orientationchange', updateFormFactor);
+        // 旧书签 / manifest 快捷方式落到对应的新入口 + 模式
+        hydrateRouteFromHash();
       });
       onBeforeUnmount(() => {
         window.removeEventListener('keydown', studyKeyDown);
         window.removeEventListener('keydown', exerciseKeyDown);
         window.removeEventListener('keydown', examKeyDown);
         window.removeEventListener('keydown', overlayKeyDown);
+        window.removeEventListener('resize', updateFormFactor);
+        window.removeEventListener('orientationchange', updateFormFactor);
         window.removeEventListener('beforeunload', _examPersist);
         window.removeEventListener('hashchange', onHashChange);
         studyClock.stop();
@@ -1105,11 +1295,12 @@
       /* ============ AI 提示词（弹窗） ============ */
       const showAiModal = ref(false);
 
-      // Esc 关闭最上层浮层（原生对话框的惯例）：先关模态，再关数据管理 sheet
+      // Esc 关闭最上层浮层（原生对话框的惯例）：先关对话框，再关模态，最后关「更多」抽屉
       function overlayKeyDown(e) {
         if (e.key !== 'Escape') return;
-        if (showAiModal.value) { showAiModal.value = false; e.preventDefault(); }
-        else if (showDataPanel.value) { showDataPanel.value = false; e.preventDefault(); }
+        if (dialog.value) { closeDialog(false); e.preventDefault(); }
+        else if (showAiModal.value) { showAiModal.value = false; e.preventDefault(); }
+        else if (showMoreSheet.value) { showMoreSheet.value = false; e.preventDefault(); }
       }
       const aiCopied = ref(false);
 
@@ -1169,32 +1360,50 @@
       const resumeExercise = resumeComputed('exercise');
       const resumeExam = resumeComputed('exam');
 
-      const tabs = computed(() => {
-        // 阶段 3：home + study + exercise + 原功能 tab
-        // 图标不再内置 emoji：外壳图标走 index.html 的 SVG 符号表（按 tab key 取 #i-<key>），
-        // 只有题库 features[].icon 显式给了图标时才覆盖它。
-        const list = [];
-        list.push({ key: 'home', label: '首页', mode: 'all' });
-        list.push({ key: 'study', label: '学习' });
-        list.push({ key: 'exercise', label: '练习' });
+      const navItems = computed(() => NAV_ITEMS.map(n => ({
+        key: n.key, label: n.label, icon: n.icon,
+        count: n.key === 'wrongbook' ? wrongCount.value
+             : (n.key === 'today' ? todayDueCount.value : 0)
+      })));
+      // <360px 收为 3 栏；≥360px 恢复 4 栏直达（§5.3 唯一的取舍在这里）
+      const visibleNavItems = computed(() => isNarrow.value ? NARROW_NAV : navItems.value);
+      const isMoreActive = computed(() => isNarrow.value && (activeTab.value === 'wrongbook' || activeTab.value === 'bank'));
+
+      // 练习页可见模式 = 全集 ∩ 旧 features 开关键名映射（§7.4.2）
+      const practiceModes = computed(() => {
         const f = features.value;
-        if (!f.practice || f.practice.enabled) list.push({ key: 'practice', label: (f.practice && f.practice.label) || '记忆闯关', icon: f.practice && f.practice.icon });
-        if (!f.preview || f.preview.enabled) list.push({ key: 'preview', label: (f.preview && f.preview.label) || '摸底速览', icon: f.preview && f.preview.icon });
-        list.push({ key: 'exam', label: '模拟考试' });
-        list.push({ key: 'category', label: '分类考试' });
-        list.push({ key: 'wrongbook', label: '错题本' });
-        return list;
+        return PRACTICE_MODES.filter(m => Nav.modeVisibleByFeature(f, m));
+      });
+      const practiceModeHint = computed(() => {
+        const m = practiceModes.value.find(x => x.key === practiceMode.value);
+        return m ? m.caliber : '';
+      });
+      function setPracticeMode(k) {
+        if (!practiceModes.value.some(m => m.key === k)) return;
+        practiceMode.value = k;
+        localStorage.setItem('memo:practiceMode', k);
+        writeHash(activeTab.value, k);
+      }
+
+      // 应用栏标题 = 当前入口名；练习页报的是模式名，不是「练习」
+      const activeTabLabel = computed(() => {
+        if (activeTab.value === 'practice') {
+          const m = PRACTICE_MODES.find(x => x.key === practiceMode.value);
+          return m ? m.label : '练习';
+        }
+        const n = NAV_ITEMS.find(x => x.key === activeTab.value);
+        return (n && n.label) || 'MemoDeck';
       });
 
-      // 导航栏标题 = 当前入口名（iOS 的 nav bar 报「你在哪个屏」，不报应用名）
-      const activeTabLabel = computed(() => {
-        const t = tabs.value.find(x => x.key === activeTab.value);
-        return (t && t.label) || 'MemoDeck';
-      });
+      // 2.x 的 tabs 被 applyNormalized / loadStart 用来校验 activeTab 值域，
+      // 保留同名 computed，但值域换成 3.0 的四个一级入口。
+      const tabs = computed(() => NAV_ITEMS.map(n => ({ key: n.key, label: n.label })));
 
       const practiceCfg = computed(() => (features.value.practice && features.value.practice.config) || {});
-      const passLabel = computed(() => practiceCfg.value.passLabel || '😎 记住了');
-      const failLabel = computed(() => practiceCfg.value.failLabel || '😥 没记住');
+      // 默认文案不再带 emoji（§7.1 禁止 emoji 做图标：跨平台渲染不一致）。
+      // 题库若在 config 里显式给了 passLabel/failLabel，仍然照用 —— 那是部署者的选择。
+      const passLabel = computed(() => practiceCfg.value.passLabel || '记住了');
+      const failLabel = computed(() => practiceCfg.value.failLabel || '没记住');
       const shufflePolicy = computed(() => practiceCfg.value.shuffle !== false);
 
       const practiceCard = computed(() => practiceQueue.value[0] ? practiceQueue.value[0].it : null);
@@ -1244,6 +1453,229 @@
 
       const aiPrompt = computed(() => AIPrompt.PROMPT);
 
+      /* ============================================================
+       * 3.0 · 今日页数据（§5.1「今日」= 今天该学什么，单一焦点）
+       * ============================================================ */
+      // 每日目标：数据层从 2.x 就就绪（examSettings:v1.dailyTarget），只是界面看不见改不了。
+      // §7.5 要求补齐 → 这里把它接出来，写入路径仍走 Session.updateSettings（键名与结构不变）。
+      const dailyTargetN = ref(Session.getSettings().dailyTarget || 20);
+      function saveDailyTarget() {
+        const n = Math.max(1, Math.min(500, Number(dailyTargetN.value) || 20));
+        dailyTargetN.value = n;
+        Session.updateSettings({ dailyTarget: n });
+        progressTick.value++;   // dailyTask 是 computed，靠这个信号重算
+        toast('每日目标已设为 ' + n + ' 题', true);
+      }
+      async function editDailyTarget() {
+        const ok = await openDialog({
+          title: '修改每日目标',
+          body: '每日目标是「今日任务」的出题上限：到期题优先，不够再用未掌握题补，补不满就按实际数量。当前 ' + dailyTargetN.value + ' 题。',
+          okText: '改成 30 题',
+          cancelText: '不改'
+        });
+        if (ok) { dailyTargetN.value = 30; saveDailyTarget(); }
+      }
+
+      const todayLabel = computed(() => {
+        const d = new Date();
+        const wk = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][d.getDay()];
+        return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 · ' + wk;
+      });
+      // 今日到期（时间维度）与记忆四档（掌握维度）是两个维度，界面上写成包含关系而不是并列相加
+      const todayOverdueCount = computed(() => dailyTask.value.stats ? (dailyTask.value.stats.due || 0) : 0);
+      const todayDueCount = computed(() => (dailyTask.value.queue || []).length);
+      const dueBreak = computed(() => dashboard.value.dueBreak || { fresh: 0, learning: 0, review: 0, total: 0 });
+      const todayLearnedCount = computed(() => dashboard.value.todayReviewed || 0);
+      const todayRemainingCount = computed(() => Math.max(0, dailyTargetN.value - todayLearnedCount.value));
+      const todayProgressPct = computed(() => {
+        const t = dailyTargetN.value || 1;
+        return Math.min(100, Math.round(todayLearnedCount.value / t * 100));
+      });
+      // 预计用时：按 30 秒/题估（口径写在界面上，不当成精确承诺）
+      const todayEtaMinutes = computed(() => Math.max(1, Math.ceil(todayDueCount.value * 30 / 60)));
+
+      // 「开始学习」= 今日 → 练习的背诵模式，范围锁定今日复习
+      function startToday() {
+        switchTab('practice');
+        setPracticeMode('recite');
+        studyScope.value = 'today';
+        studyStart();
+      }
+      // 「攻薄弱项」= 错题本发起的复习轮（重练/重考是错题本内的两种发起方式，不再是独立入口）
+      function startWeakAttack() {
+        if (!wrongItems.value.length) { toast('错题本是空的', false); return; }
+        switchTab('practice');
+        setPracticeMode('answer');
+        exerciseScope.value = 'wrongbook';
+        exerciseStart();
+      }
+
+      /* ============================================================
+       * 3.0 · 恢复提示卡（§4.1 三段式 + §7.5「何时留下」）
+       * ============================================================ */
+      function relTime(iso) {
+        if (!iso) return '上次';
+        const t = new Date(iso).getTime();
+        if (isNaN(t)) return '上次';
+        const diff = Math.max(0, Date.now() - t);
+        const min = Math.floor(diff / 60000);
+        if (min < 1) return '刚刚';
+        if (min < 60) return min + ' 分钟前';
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return hr + ' 小时前';
+        const day = Math.floor(hr / 24);
+        if (day < 7) return day + ' 天前';
+        const d = new Date(iso);
+        return (d.getMonth() + 1) + '/' + d.getDate();
+      }
+      const MODE_LABEL = { study: '背诵', exercise: '答题', exam: '模拟考试' };
+      const allResumes = computed(() => {
+        progressTick.value;
+        resumeTick.value;
+        const out = [];
+        ['study', 'exercise', 'exam'].forEach(m => {
+          const r = Session.loadResumePoint(bankIdOf(), m);
+          if (!r || !Array.isArray(r.queueGids) || !r.queueGids.length) return;
+          out.push({
+            mode: m,
+            label: MODE_LABEL[m] || m,
+            position: '第 ' + (Math.min((r.currentIndex || 0) + 1, r.queueGids.length) + '/' + r.queueGids.length) + ' 题',
+            when: relTime(r.lastTouchedAt || r.startedAt)
+          });
+        });
+        return out;
+      });
+      function resumeFrom(mode) {
+        switchTab('practice');
+        const m = PRACTICE_MODES.find(x => x.sessionMode === mode);
+        if (m) setPracticeMode(m.key);
+        if (mode === 'study') studyResume();
+        else if (mode === 'exercise') exerciseResume();
+        else if (mode === 'exam') examResume();
+      }
+      function dismissResume(mode) {
+        Session.clearResumePoint(mode);
+        refreshResume();
+        toast('已放弃这次恢复点', true);
+      }
+
+      /* ============================================================
+       * 3.0 · 作答状态层（§4.4 七种状态里的「正确 / 漏选 / 你选」三档）
+       * 判断/单选/多选共用同一套映射，交卷后由它给选项块上色并给判定文字。
+       * 工厂函数只接「取值的函数」，不接 ref —— 避免把 ComputedRef 当成题目对象读。
+       * ============================================================ */
+      function stdKeysOf(item) {
+        if (!item) return [];
+        if (item.rawType === 'multi_choice') return Array.isArray(item.answer) ? item.answer.slice().sort() : [];
+        if (item.rawType === 'single_choice') return item.answer ? [String(item.answer)] : [];
+        return [];
+      }
+      function makeOptionState(getItem, getPicked, getShown) {
+        function clsFor(key) {
+          const item = getItem();
+          if (!item) return '';
+          const picked = getPicked();
+          const isPicked = Array.isArray(picked) ? picked.indexOf(key) >= 0 : picked === key;
+          if (!getShown()) return isPicked ? 'selected' : '';
+          const std = stdKeysOf(item);
+          const isStd = std.indexOf(key) >= 0;
+          if (isStd && isPicked) return 'correct';   // 你选的、且是正确答案
+          if (isStd && !isPicked) return 'missed';   // 正确答案但你没选 → 漏选
+          if (!isStd && isPicked) return 'wrong';    // 你选了但不对 → 你选
+          return '';
+        }
+        function flagFor(key) {
+          if (!getShown()) return '';
+          const c = clsFor(key);
+          if (c === 'correct') return getItem().rawType === 'multi_choice' ? '正确 · 已选' : '正确';
+          if (c === 'missed') return '漏选';
+          if (c === 'wrong') return '你选';
+          return '';
+        }
+        return { cls: clsFor, flag: flagFor };
+      }
+
+      const _exPicked = () => {
+        const cur = exerciseCurrentItem.value;
+        if (!cur) return null;
+        return cur.rawType === 'multi_choice' ? exerciseMultiSel.value : exerciseChoice.value;
+      };
+      const _exerciseState = makeOptionState(() => exerciseCurrentItem.value, _exPicked, () => exerciseAnswerSubmitted.value);
+      const exerciseOptionState = _exerciseState.cls;
+      const exerciseOptionFlag = _exerciseState.flag;
+
+      const _catPicked = () => {
+        const cur = catCurrent.value;
+        if (!cur) return null;
+        return cur.rawType === 'multi_choice' ? catMultiSel.value : catChoice.value;
+      };
+      // 自测：主观题揭示后还没有自评结果时，不给选项上色（没有「判对了」这件事）
+      const _catShown = () => catRevealed.value && isObjective(catCurrent.value && catCurrent.value.rawType);
+      const _catState = makeOptionState(() => catCurrent.value, _catPicked, _catShown);
+      const catOptionState = _catState.cls;
+      const catOptionFlag = _catState.flag;
+
+
+      /* ============================================================
+       * 3.0 · 统计三联格（§4.1）
+       * ============================================================ */
+      const studyTriplet = computed(() => ([
+        { n: studyPassCount.value, label: '记住了', tone: 'ok' },
+        { n: studyFailCount.value, label: '还不会', tone: 'no' },
+        { n: studyNewMastered.value, label: '转为已掌握', tone: '' },
+        { n: studyNewWrong.value, label: '进错题本', tone: 'no' }
+      ]));
+      const exerciseTriplet = computed(() => ([
+        { n: exercisePassCount.value, label: '答对', tone: 'ok' },
+        { n: exerciseFailCount.value, label: '答错', tone: 'no' },
+        { n: exerciseNewWrong.value, label: '进错题本', tone: 'no' },
+        { n: exerciseNewMastered.value, label: '转为已掌握', tone: '' }
+      ]));
+      const catTriplet = computed(() => ([
+        { n: catStats.total, label: '总题数', tone: '' },
+        { n: catStats.right, label: '答对', tone: 'ok' },
+        { n: catStats.wrong, label: '答错', tone: 'no' },
+        { n: catElapsed.value || '0 秒', label: '用时', tone: '' }
+      ]));
+
+      /* 按题型自测的实时进度与计时 */
+      const catProgressPct = computed(() => catStats.total ? Math.round((catIndex.value / catStats.total) * 100) : 0);
+      const catElapsedLive = computed(() => {
+        if (catStage.value === 'done') return catElapsed.value;
+        if (!catStartTime.value) return '0分 00s';
+        return studyFormatDuration(Math.floor((Date.now() - catStartTime.value) / 1000));
+      });
+
+      /* ============================================================
+       * 3.0 · 折叠屏 / 形态切换（§8）
+       * 形态切换不丢状态：作答内容、计时、当前位置都在各自的 ref 与恢复点里，
+       * 与屏幕尺寸无关，所以这里只做「可见性」而不做任何搬迁。
+       * ============================================================ */
+      function bucketOf(w) {
+        if (w < 360) return 'narrow';
+        if (w < 560) return 'phone';
+        if (w < 768) return 'tablet-portrait';
+        if (w < 1024) return 'tablet';
+        if (w < 1440) return 'desktop';
+        return 'wide';
+      }
+      function updateFormFactor() {
+        const w = window.innerWidth || document.documentElement.clientWidth || 390;
+        isNarrow.value = w < 360;
+        isWide.value = w >= 1024;
+        const twoCol = w >= 768;
+        formFactor.value = twoCol ? '展开 · 双栏' : (w >= 560 ? '展开 · 单栏' : '折叠 · 单栏');
+        const bucket = bucketOf(w);
+        if (lastFormBucket && bucket !== lastFormBucket) {
+          // 首次跨越形态边界才提示一次，之后静默（§8 规则 4）
+          formHint.value = '形态已切换为「' + formFactor.value + '」，作答内容与计时已自动保留';
+          clearTimeout(formHintTimer);
+          formHintTimer = setTimeout(() => { formHint.value = ''; }, 3000);
+        }
+        lastFormBucket = bucket;
+      }
+
+
       /* ============ 工具 ============ */
       function toast(msg, ok) {
         toastMsg.value = msg;
@@ -1259,12 +1691,13 @@
         return { source, url: url || '', fetchedAt: new Date().toISOString(), data };
       }
       function sourceMetaDump(source) {
+        // §7.1 禁止 emoji 做图标：来源标识只写文字，颜色与底色由 .src-badge 的语义档给
         const t = source.source;
-        if (t === 'remote') sourceMeta.value = { label: '🌐 远程', cls: 'remote', url: source.url || '', detail: `URL：${source.url || '(未记录)'} · 读取于 ${source.fetchedAt || ''}` };
-        else if (t === 'paste') sourceMeta.value = { label: '📋 粘贴', cls: 'paste', url: '', detail: `手动录入 · 缓存于 ${source.fetchedAt || ''}` };
-        else if (t === 'file') sourceMeta.value = { label: '📁 本地文件', cls: 'local', url: '', detail: `文件导入 · 缓存于 ${source.fetchedAt || ''}` };
-        else if (t === 'local') sourceMeta.value = { label: '🗄️ 本地缓存', cls: 'local', url: source.url || '', detail: (source.url ? `URL：${source.url} · ` : '') + `缓存于 ${source.fetchedAt || ''}` };
-        else sourceMeta.value = { label: '📄 内置默认', cls: 'default', url: '', detail: '应用内置的离线兜底数据。' };
+        if (t === 'remote') sourceMeta.value = { label: '远程', cls: 'remote', url: source.url || '', detail: `URL：${source.url || '(未记录)'} · 读取于 ${source.fetchedAt || ''}` };
+        else if (t === 'paste') sourceMeta.value = { label: '粘贴录入', cls: 'paste', url: '', detail: `手动录入 · 缓存于 ${source.fetchedAt || ''}` };
+        else if (t === 'file') sourceMeta.value = { label: '本地文件', cls: 'local', url: '', detail: `文件导入 · 缓存于 ${source.fetchedAt || ''}` };
+        else if (t === 'local') sourceMeta.value = { label: '本地缓存', cls: 'local', url: source.url || '', detail: (source.url ? `URL：${source.url} · ` : '') + `缓存于 ${source.fetchedAt || ''}` };
+        else sourceMeta.value = { label: '内置示例题库', cls: 'default', url: '', detail: '应用内置的离线兜底数据，可直接开练；想换题库去「题库」页。' };
       }
 
       /* ============ 数据应用 ============ */
@@ -1382,6 +1815,10 @@
         if (!mode) return;
         global.ExamBackup.importBackup(file, { mode: mode }).then(function (r) {
           toast(r.msg, r.ok);
+          // 旧备份导入时把「按旧口径进来了什么」讲清楚，不要只报一个成功数
+          if (r.notes && r.notes.length) {
+            setTimeout(function () { toast(r.notes[0], true); }, 2400);
+          }
           if (r.ok) {
             progressTick.value++;
             refresh();
@@ -1519,24 +1956,60 @@
         URL.revokeObjectURL(a.href);
       }
 
-      /* ============ Tab 切换 ============ */
-      // manifest.json 声明了 #/study #/practice #/wrongbook 三个入口，但应用从不读
-      // hash，三个快捷方式都只会打开首页；读 hash 也顺带让刷新不再退回首页。
-      function tabFromHash() {
-        const m = /^#\/([a-z]+)$/.exec(location.hash || '');
-        return m && tabs.value.some(t => t.key === m[1]) ? m[1] : '';
+      /* ============ 导航切换与 hash 兼容 ============ */
+      // manifest.json 声明过 #/study #/practice #/wrongbook 三个入口，2.x 从不读 hash，
+      // 三个快捷方式都只会打开首页。3.0 换了导航结构，但**旧 hash 必须继续可达**：
+      // 用户存的书签、部署方写死的入口链接都属于数据兼容范围。
+      // 新格式：#/today  #/practice/<mode>  #/wrongbook  #/bank
+      // 旧格式：#/home #/study #/exercise #/category #/exam #/preview #/practice #/wrongbook
+      function parseHash() { return Nav.parseHash(location.hash); }
+      function writeHash(tab, mode) {
+        const want = Nav.formatHash(tab, mode);
+        if (want && location.hash !== want) location.hash = want;   // hashchange 回调里值已相等，不成环
       }
       function switchTab(k) {
-        if (!tabs.value.some(t => t.key === k)) return;
+        if (!NAV_ITEMS.some(n => n.key === k)) return;
         activeTab.value = k;
-        const want = '#/' + k;
-        if (location.hash !== want) location.hash = want; // hashchange 回调里值已相等，不成环
-        if (k === 'practice' && practiceQueue.value.length === 0) resetPractice();
+        if (k === 'practice') {
+          // 被旧开关关掉的模式不能停在原地（features 变了要落到可见模式上）
+          if (!practiceModes.value.some(m => m.key === practiceMode.value)) {
+            practiceMode.value = practiceModes.value.length ? practiceModes.value[0].key : 'recite';
+          }
+          writeHash('practice', practiceMode.value);
+        } else {
+          writeHash(k);
+        }
         if (k === 'wrongbook') loadWrongbook();
+        if (k === 'today') refreshProgress();
       }
       function onHashChange() {
-        const k = tabFromHash();
-        if (k && k !== activeTab.value) switchTab(k);
+        const r = parseHash();
+        if (!r) return;
+        if (r.tab !== activeTab.value) activeTab.value = r.tab;
+        if (r.mode && r.mode !== practiceMode.value && practiceModes.value.some(m => m.key === r.mode)) {
+          practiceMode.value = r.mode;
+        }
+      }
+      // 应用启动时把 URL 里的入口读出来（旧书签落到对应的新入口 + 模式）
+      function hydrateRouteFromHash() {
+        const r = parseHash();
+        if (!r) return;
+        activeTab.value = r.tab;
+        if (r.mode) practiceMode.value = r.mode;
+      }
+
+      function setTheme(mode) { themeMode.value = mode; applyTheme(); }
+
+      /* ============ 通用确认对话框（§4.1 不可逆确认） ============ */
+      // 交卷确认、清空全部数据、手动删除错题都用同一个组件，
+      // 正文必须点名对象与后果——「确定吗」不算确认。
+      function openDialog(opts) {
+        return new Promise(resolve => { dialog.value = Object.assign({}, opts, { resolve }); });
+      }
+      function closeDialog(ok) {
+        const d = dialog.value;
+        dialog.value = null;
+        if (d && d.resolve) d.resolve(!!ok);
       }
 
       /* ============ 记忆闯关（Leitner） ============ */
@@ -1551,6 +2024,9 @@
           Leitner.markPass(practiceQueue.value);
           // 阶段 0 新增：写入 progress store
           if (cur && cur.gid) Progress.markPass(cur.gid);
+          // 3.0 §7.4.1：闯关答对也计错题本连对。
+          // 注意「本轮攻克」只是队列内的位置变化，不写跨会话状态（§7.3 消歧）
+          if (cur) _creditWrongbookCorrect(cur.gid);
         } else {
           Leitner.markFail(practiceQueue.value);
           // 没记住：立即加入错题本（全局去重），实时刷新角标
@@ -1608,26 +2084,15 @@
         catInput.value = '';
         catChoice.value = null;
         catMultiSel.value = [];
+        catBlanks.value = [];
         catRevealed.value = false;
         catFeedback.value = null;
       }
       // 填空题多空答案：在光标处插入分隔符「|」，免去手动输入
-      function insertCatSep() {
-        const el = catFillInput.value;
-        const cur = catCurrent.value;
-        if (!cur || catRevealed.value) return;
-        const v = catInput.value || '';
-        const pos = (el && typeof el.selectionStart === 'number') ? el.selectionStart : v.length;
-        catInput.value = v.slice(0, pos) + '|' + v.slice(pos);
-        nextTick(() => {
-          if (el) {
-            el.focus();
-            try { el.setSelectionRange(pos + 1, pos + 1); } catch (e) {}
-          }
-        });
-      }
+      // 3.0：填空题改为逐空输入（§4.2），「在光标处插入 | 分隔符」这条路已经不存在了，
+      // 配套的 insertCatSep / catFillInput 一并删除——留着就是一个没人读的按钮。
       function isObjective(rawType) {
-        return rawType === 'true_false' || rawType === 'single_choice' || rawType === 'multi_choice';
+        return Judge.isObjective(rawType);   // 口径唯一，见 js/judge.js
       }
       function catSubmit() {
         const cur = catCurrent.value;
@@ -1641,23 +2106,30 @@
       function finishCatAnswer(correct) {
         catRevealed.value = true;
         catFeedback.value = { correct: correct };
+        const cur = catCurrent.value;
         if (correct) {
           catStats.right++;
-          // 来自错题本的重新考试：答对自动移出错题本
-          if (catFromWrongbook.value && catCurrent.value) {
-            Wrongbook.removeByItem(catCurrent.value);
-            loadWrongbook();
+          // 3.0 §7.4.1：**删除了「来自错题本、答对 1 次即移出」的短路**。
+          // 原来 catFromWrongbook 为真时直接 Wrongbook.removeByItem，
+          // 于是「错题重考」成了一条比日常复习更宽松的离开通道，
+          // 同一道题换个入口就能一次出本。现在所有入口都只走 creditCorrectByGid。
+          if (cur) {
+            Progress.markPass(cur.gid);
+            _creditWrongbookCorrect(cur.gid);
           }
-          // 答对：短暂展示「✅ 回答正确」后自动进入下一题
+          refreshProgress();
+          // 答对：短暂展示结果后自动进入下一题（0.6 秒是节奏控制，reduced-motion 也保留）
           clearTimeout(autoNextTimer);
           autoNextTimer = setTimeout(() => {
             if (catStage.value === 'test') catNext();
           }, 600);
         } else {
           catStats.wrong++;
-          catWrongItems.value.push(catCurrent.value);
+          catWrongItems.value.push(cur);
+          if (cur) Progress.markFail(cur.gid);
           // 答错：实时加入错题本（全局去重，跨来源），无需等考试结束即可见
-          Wrongbook.add(catCurrent.value, 'exam', null, false);
+          if (cur) Wrongbook.add(cur, 'exam', null, false);
+          refreshProgress();
           loadWrongbook();
         }
       }
@@ -1690,6 +2162,7 @@
           input: catInput.value,
           choice: catChoice.value,
           multiSel: catMultiSel.value.slice(),
+          blanks: catBlanks.value.slice(),
           revealed: catRevealed.value,
           feedback: catFeedback.value
         };
@@ -1700,6 +2173,8 @@
           catInput.value = s.input;
           catChoice.value = s.choice;
           catMultiSel.value = s.multiSel.slice();
+          // 旧快照（2.x 存的）没有 blanks —— 缺失时按 undefined → 空数组，不报错
+          catBlanks.value = Array.isArray(s.blanks) ? s.blanks.slice() : [];
           catRevealed.value = s.revealed;
           catFeedback.value = s.feedback;
         } else {
@@ -1767,9 +2242,54 @@
       function loadWrongbook() {
         wrongEntries.value = Wrongbook.list();
       }
-      function wrongRemove(id) {
-        Wrongbook.remove(id);
+
+      /**
+       * 3.0 §7.4.1 错题离开规则的唯一落点。
+       *
+       * 2.x 有三条并行规则：重练连对 3 次移出、重考答对 1 次即移出、其它入口答对不计次。
+       * 现在收敛成一条——**任何入口答对都计连对，累计 3 次自动移出，并告知原因**。
+       * 所有模式（背诵/答题/自测/考试/闯关/错题练习）答对时都调这一个函数，
+       * 不在错题本里的题它自己会 no-op（绝不因为答对一道没错过的题而造一条错题记录）。
+       */
+      function _creditWrongbookCorrect(gid) {
+        if (!gid || !Wrongbook.creditCorrectByGid) return;
+        const r = Wrongbook.creditCorrectByGid(gid);
         loadWrongbook();
+        if (r.removed) toast('这道题累计连对 3 次，已自动移出错题本', true);
+        else if (r.recorded && r.streak === 2) toast('连对 2 次 · 状态转为「模糊」，再答对 1 次即移出', true);
+      }
+
+      function wrongRemove(id, reason) {
+        Wrongbook.remove(id, reason || '手动删除');
+        loadWrongbook();
+        toast('已手动删除这道错题', true);
+      }
+      function wrongMarkMastered(id) {
+        if (!Wrongbook.markCleared) return;
+        Wrongbook.markCleared(id);
+        loadWrongbook();
+        refreshProgress();
+        toast('已标记为「已攻克」并移出错题本（原因记为手动标记）', true);
+      }
+      function wbToggle(id) { wbOpen[id] = !wbOpen[id]; }
+      async function askRemoveWrong(e) {
+        const q = String((e.item && (e.item.question || e.item.q)) || '').slice(0, 40);
+        const ok = await openDialog({
+          title: '删除这道错题？',
+          body: '将从错题本移除「' + q + (String(e.item && (e.item.question || e.item.q) || '').length > 40 ? '…' : '') + '」，删除原因会记为「手动删除」。学习进度不受影响。',
+          okText: '删除',
+          danger: true
+        });
+        if (ok) wrongRemove(e.id, '手动删除');
+      }
+      async function askClearWrongbook() {
+        const ok = await openDialog({
+          title: '清空整个错题本？',
+          body: '将删除全部 ' + wrongCount.value + ' 条错题记录。跨会话的记忆进度（新题/学习中/需复习/已掌握）不受影响。此操作不可撤销——除非你之前导出过备份。',
+          okText: '确认清空',
+          danger: true
+        });
+        if (ok) { wrongClear(); toast('已清空错题本（原因记为「用户手动清空」）', true); }
       }
       function wrongClear(source) {
         Wrongbook.clear(source);
@@ -1784,15 +2304,15 @@
         const cur = wrongPracticeQueue.value[0];
         const curItem = cur && cur.it;
         if (remembered) {
-          // ✅ v2：调 Wrongbook.markCorrect 推进状态机（连续答对 3 次自动移出）
-          // 先找对应 entry（通过 gid）
+          // ✅ v2：调 Wrongbook.markCorrect 推进状态机（累计连对 3 次自动移出）
           const wbEntries = Wrongbook.list();
           const entry = curItem && curItem.gid
             ? wbEntries.find(e => e.gid === curItem.gid)
             : null;
           if (entry) {
             const result = Wrongbook.markCorrect(entry.id);
-            if (result.removed) toast('🎉 这道题已连续答对 3 次，自动移出错题本', true);
+            // §7.4.1：移出时必须告知原因，文案由数据层返回的 reason 给，不在界面重写成第二套口径
+            if (result.removed) toast('这道题' + (result.reason || '累计连对 3 次') + '，已移出错题本', true);
             loadWrongbook();
           }
           // Leitner 队列仍然前移
@@ -1828,7 +2348,11 @@
         catStartTime.value = Date.now();
         catElapsed.value = '';
         resetCatAnswer();
-        activeTab.value = 'category';
+        // 3.0：「错题重考」不再是独立入口，它是错题本里发起的一轮「按题型自测」。
+        // catFromWrongbook 仍然置真（它记录的是这一轮的来源），但**不再改变离开规则**
+        // ——答对一样只计连对，累计 3 次才移出（§7.4.1）。
+        switchTab('practice');
+        setPracticeMode('bytype');
       }
 
       /* ============ AI 提示词 ============ */
@@ -1859,31 +2383,46 @@
 
       return {
         activeTab, activeTabLabel, sourceMeta, currentBank, papers, hasMultiplePapers, features, currentPaperId, bank, dataError,
-        remoteUrl, pasteText, managerUrl, showDataPanel, dataBusy, dragActive, toastMsg, toastOk,
-        themeMode, applyTheme,
+        remoteUrl, pasteText, managerUrl, dataBusy, dragActive, toastMsg, toastOk,
+        themeMode, applyTheme, setTheme,
+        // —— 3.0 导航 / 形态 / 对话框 ——
+        navItems, visibleNavItems, isMoreActive, isNarrow, isWide,
+        practiceMode, practiceModes, practiceModeHint, setPracticeMode,
+        showMoreSheet, wbOpen, wbToggle, dialog, closeDialog, openDialog,
+        formFactor, formHint,
+        appVersion: (global.MEMODECK_VERSION && global.MEMODECK_VERSION.APP) || '3.0.0',
+        viewVersion: (global.MEMODECK_VERSION && global.MEMODECK_VERSION.VIEW) || '1.0.0',
         practiceQueue, practiceShowAnswer, practiceCard, practiceMastered, practiceProgress,
         passLabel, failLabel, totalQuestions, tabs,
         previewRevealed,
-        catStage, catSelected, catInput, catChoice, catRevealed, catFeedback,
+        catStage, catSelected, catInput, catChoice, catMultiSel, catBlanks, catRevealed, catFeedback,
         catIndex, catStats, catWrongItems, catError, catCurrent, catNextLabel, hasPrevCat, catElapsed, catTypes, catAllSelected,
+        catProgressPct, catElapsedLive, catOptionState, catOptionFlag,
+        catTriplet,
         customForm,
         wrongTab, wrongCount, wrongFiltered, wrongItems, wrongSourceTabs, wrongStatusDist,
         wrongPracticeQueue, wrongPracticeShow,
         showAiModal, aiPrompt, aiCopied,
-        catFillInput, insertCatSep,
         fetchUrl, refresh, applyPaste, clearAndReload, onDragOver, onDragLeave, onDrop, onFileChange,
         downloadCurrent, copyCurrent, downloadRules, switchPaper, switchTab,
         doExportBackup, onImportBackup, doClearAll, confirmClearAll,
         resetPractice, mark, togglePreview, addPreviewToWrongbook,
         toggleCatType, selectAllTypes, startCat, catSubmit, catSelfJudge, catNext, catPrev,
-        catOptionClick, isCatOptionOn, catRestart, addCustomQuestion, isObjective,
+        catRestart, addCustomQuestion, isObjective,
         sourceLabel,
         wrongRemove, wrongClear, startWrongPractice, wrongMark, startWrongExam,
+        wrongMarkMastered, askRemoveWrong, askClearWrongbook,
         copyAiPrompt, downloadAiPrompt,
-        // —— 阶段 0/1 新增：首页数据 & 学习状态 ——
+        // —— 3.0 今日页 ——
+        todayLabel, todayDueCount, todayOverdueCount, todayLearnedCount, todayRemainingCount,
+        todayProgressPct, todayEtaMinutes, dueBreak,
+        dailyTargetN, saveDailyTarget, editDailyTarget,
+        startToday, startWeakAttack,
+        allResumes, resumeFrom, dismissResume,
+        // —— 今日/学习状态 ——
         bankGids, dashboard, dailyTask, weekActiveDays, weekGoalDays,
         resumeStudy, resumeExercise, resumeExam,
-        // —— 阶段 2 新增：学习/背诵模式 ——
+        // —— 背诵（原「学习」）——
         studyMode, studyScope, studyCustomStart, studyCustomEnd, studyStrategy,
         studyPerSession, studyPerSessionCustom, studyTypes,
         studyShowAnswer,
@@ -1895,13 +2434,14 @@
         studyStart, studyResume, studyMark, studyNext,
         studyExit, studyRestart, studyFormatDuration,
         studyOnSwipeStart, studyOnSwipeMove, studyOnSwipeEnd,
-        studyAutoFillCustomEnd,
-        // —— 阶段 3 新增：练习模式 ——
+        studyAutoFillCustomEnd, studyTriplet,
+        // —— 答题（原「练习」）——
         exerciseMode, exerciseScope, exerciseCustomStart, exerciseCustomEnd, exerciseStrategy,
         exercisePerSession, exercisePerSessionCustom, exerciseTypes,
         exerciseIndex,
-        exerciseAnswerSubmitted, exerciseChoice, exerciseMultiSel, exerciseInput,
-        exerciseFeedback,
+        exerciseAnswerSubmitted, exerciseChoice, exerciseMultiSel, exerciseInput, exerciseBlanks,
+        exerciseFeedback, exerciseSelfResult, exerciseCanSubmit,
+        exerciseOptionState, exerciseOptionFlag,
         exercisePassCount, exerciseFailCount, exerciseSummaryIcon, exerciseNewWrong, exerciseNewMastered, exerciseElapsedSec,
         exerciseSwipeX, exerciseSwipeActive,
         exerciseCurrentItem, exerciseNextItem, exerciseTotal, exerciseProgressPct,
@@ -1910,7 +2450,8 @@
         exerciseSubmit, exerciseSelfJudge, exerciseNext, exerciseExit, exerciseRestart,
         exerciseOptionClick, exerciseIsOptionOn, exerciseAutoFillCustomEnd,
         exerciseOnSwipeStart, exerciseOnSwipeMove, exerciseOnSwipeEnd,
-        // —— 阶段 4 新增：模拟考试 ——
+        exerciseTriplet,
+        // —— 模拟考试 ——
         examMode, examScope, examCustomStart, examCustomEnd, examStrategy,
         examPerSession, examPerSessionCustom, examTypes,
         examQueueGids, examIndex, examElapsedSec,
@@ -1919,39 +2460,16 @@
         examAnsweredCount, examCurrentItem, examTotal, examProgressPct,
         examIndexLabel, examBadgeCount,
         examStart, examResume, examJump, examPrev, examNext, examSubmit, examSelfJudge, examExit, examRestart,
+        askSubmitExam: examSubmit,
         examOptionClick, examIsOptionOn, examAutoFillCustomEnd,
-        examInputProxy, examChoiceProxy
+        examInputProxy, examChoiceProxy, examMultiSel, examBlanks
       };
     }
   });
 
-  // 全局组件：标准答案展示（记忆闯关 / 摸底速览 复用）
-  app.component('answer-view', {
-    props: { item: { type: Object, required: true } },
-    template: `
-      <div class="answer-box">
-        <div class="answer-title">标准答案：</div>
-        <template v-if="item.rawType === 'fill_blank' || item.rawType === 'special_fill_blank'">
-          <div class="answer-item" v-for="(b, i) in (item.blanks || [])" :key="i">
-            <span class="answer-index">空 {{ b.index }}</span><span class="answer-text">{{ b.answer }}</span>
-          </div>
-        </template>
-        <template v-else-if="item.rawType === 'true_false'">
-          <span class="answer-text" :class="item.answer ? 'ans-ok' : 'ans-no'">{{ item.answer ? '✓ 正确' : '✗ 错误' }}</span>
-        </template>
-        <template v-else-if="item.rawType === 'single_choice'">
-          <span class="answer-text">{{ item.answer }}. {{ item.options && item.options[item.answer] }}</span>
-        </template>
-        <template v-else-if="item.rawType === 'multi_choice'">
-          <span class="answer-text">{{ Array.isArray(item.answer) ? item.answer.join(', ') : item.answer }}</span>
-        </template>
-        <template v-else>
-          <span class="answer-text">{{ item.answer }}</span>
-        </template>
-        <div class="answer-explanation" v-if="item.explanation">解析：{{ item.explanation }}</div>
-      </div>
-    `
-  });
+  // 3.0：共享组件与题型控件全部注册在 app 上（唯一一份实现，见各自文件头注释）
+  if (UIComponents) UIComponents.install(app);
+  if (Types) Types.install(app);
 
   app.mount('#app');
 })(window);

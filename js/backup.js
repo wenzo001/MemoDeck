@@ -28,7 +28,7 @@
 
   const PREFIX = 'exam';
   // 从 config.js 统一版本源读取
-const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKUP) || '2.0';
+const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKUP) || '3.0';
   const EXPORT_SCHEMA = 1;
 
   // —— 内部：收集所有 exam* 键 ——
@@ -81,6 +81,38 @@ const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKU
   }
 
   /**
+   * 3.0 · 旧备份归一。
+   *
+   * 备份按 `exam*` 键原样存 localStorage 快照，3.0 没有改任何一个键的结构，
+   * 所以 2.x 的备份可以直接导入。真正新增的只有一处：错题本的移出留痕 `history`
+   * （js/wrongbook.js 读取时按空数组兜底，这里不预先塞，避免把「没有」写成「空表」）。
+   *
+   * 这个函数只负责**报告**，不改数据：导入旧备份时用户应当知道哪些东西按旧口径进来了、
+   * 哪些不在备份范围内。
+   *
+   * @returns {{from:string, notes:string[]}}
+   */
+  function normalizeBackup(data) {
+    var notes = [];
+    var from = data.memodeckVersion ? String(data.memodeckVersion) : '（无版本号，按 1.x/2.x 处理）';
+    var s = data.storage || {};
+
+    if (!/^(3\.)/.test(from)) {
+      notes.push('这份备份来自 MemoDeck ' + from + '，3.0 可直接读取：题库、学习进度、错题本、恢复点的数据结构都没有变更。');
+    }
+    var wb = s['examWrongbook:v1'];
+    if (wb && Array.isArray(wb.entries) && !Array.isArray(wb.history)) {
+      notes.push('旧备份的错题本没有「移出留痕」字段，导入后「已攻克」从 0 开始累计；已有的错题条目本身不受影响。');
+    }
+    var sess = s['examSession:v1'];
+    if (sess && sess.resume && sess.resume.mode) {
+      notes.push('旧备份的恢复点是单槽格式，读取时会自动归到它自己的模式桶里（背诵/答题/模拟考试互不覆盖）。');
+    }
+    notes.push('主题偏好与练习模式选择存在 memo:* 键下，不在 exam* 备份范围内——换设备后需要重新选一次。');
+    return { from: from, notes: notes };
+  }
+
+  /**
    * 导入备份
    * @param {File|string|object} source
    * @param {object} [opts]
@@ -115,6 +147,7 @@ const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKU
         if (err) { reject({ ok: false, msg: err }); return; }
 
         var keys = Object.keys(data.storage);
+        var norm = normalizeBackup(data);
         if (mode === 'replace') {
           // 清所有 exam* 键
           var toDelete = [];
@@ -138,8 +171,10 @@ const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKU
 
         resolve({
           ok: true,
-          msg: '成功导入 ' + written + ' 个数据键',
-          keys: written
+          msg: '成功导入 ' + written + ' 个数据键' + (norm.notes.length ? '（' + norm.notes.length + ' 条提示）' : ''),
+          keys: written,
+          from: norm.from,
+          notes: norm.notes
         });
       }
     });
@@ -163,7 +198,7 @@ const EXPORT_VERSION = (window.MEMODECK_VERSION && window.MEMODECK_VERSION.BACKU
   global.ExamBackup = {
     EXPORT_VERSION, EXPORT_SCHEMA,
     collect, exportPayload, exportBackup,
-    validate, importBackup,
+    validate, importBackup, normalizeBackup,
     clearAll
   };
 })(typeof window !== 'undefined' ? window : globalThis);

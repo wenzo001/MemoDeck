@@ -1,14 +1,18 @@
 /* ============================================================
- * MemoDeck · Theme Overrides
- * — 手动 dark: html[data-theme="dark"]
- * — 手动 light (系统 dark): @media dark { html[data-theme="light"] }
- * — auto + 系统 dark: @media dark { :root }  ← 新增！之前缺这
- * — auto + 系统 dark: @media dark { :root }  ← 新增！之前缺这
- * — 组件硬编码: 跟 tokens.css @media dark 里的保持一致（两份，应对手动+系统两种来源；
- *   tokens.css 那份带 html:not([data-theme="light"]) 守卫，防止系统 dark + 手动 light 漏深色）
+ * MemoDeck 3.0 · Theme Overrides
+ *
+ * 3.0 起这一层几乎为空，这是有意的：
+ *   2.x 在这里写过 3 份完整深色 token（手动 dark 一份、@media :root 一份、
+ *   @media 手动 light 一份），同一个色值三处声明，改一处漏两处。
+ *   现在深色值只有 tokens.css 的 `html[data-theme="dark"]` 一处，
+ *   因为 applyTheme 在 auto 模式下也会把 matchMedia 解析出的
+ *   'light' | 'dark' 写进 data-theme —— 系统偏好与手动覆盖走同一条路径，
+ *   token 层不再需要 @media (prefers-color-scheme)。
+ *
+ * 本文件只留真正无法 token 化的东西：主题切换控件本身 + 少量组件硬编码。
  * ============================================================ */
 
-/* —— 主题切换按钮 —— */
+/* —— 主题切换按钮（分段控件，与 §4.1 状态芯片同一档圆角）—— */
 .theme-switch {
   display: inline-flex;
   gap: 2px;
@@ -17,11 +21,14 @@
   border-radius: var(--radius-full);
 }
 .theme-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  /* 验收硬门槛：触控目标 ≥44×44pt。三枚分段按钮的视觉是 20px 图标，
+     命中区必须是 44 —— 2.x 只在 ≤559px 补了这一档，宽屏上仍是 28×28，
+     等于整条门禁在桌面上是空的。3.0 不分宽度统一到 44。 */
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
   border-radius: var(--radius-full);
@@ -30,111 +37,26 @@
   color: var(--text-tertiary);
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
+.theme-btn .icon { width: 20px; height: 20px; font-size: 20px; margin-right: 0; }
 .theme-btn:hover { color: var(--text-main); }
 .theme-btn.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--text-primary, var(--md-text-primary));
   box-shadow: var(--shadow-popover);
 }
 
-/* ============================================================
- * 手动 dark —— html[data-theme="dark"]
- * （手动选 dark，不管系统是 light 还是 dark）
- * ============================================================ */
-html[data-theme="dark"] {
-  --primary:#0A84FF;--primary-hover:#409CFF;--primary-active:#0066CC;
-  --primary-bg:rgba(10,132,255,0.24);--primary-bg-hover:rgba(10,132,255,0.32);
-  --success:#30D158;--success-bg:rgba(48,209,88,0.18);--success-border:rgba(48,209,88,0.35);--success-fill:#30D158;
-  --danger:#FF453A;--danger-bg:rgba(255,69,58,0.16);--danger-border:rgba(255,69,58,0.32);--danger-fill:#FF453A;
-  /* 深色模式语义色更亮，白字压上去只有 2.0–3.7:1，所以改为近黑前景（5.8–10.4:1） */
-  --on-accent:#000000;
-  --warn:#FF9F0A;--warn-bg:rgba(255,159,10,0.18);
-  --info:#64D2FF;--info-bg:rgba(100,210,255,0.18);
-  --text-main:#F2F2F7;--text-muted:#98989D;--text-tertiary:#636366;
-  --text-disabled:rgba(235,235,245,0.30);--text-placeholder:rgba(235,235,245,0.40);
-  --bg:#000000;--surface:#1C1C1E;--surface-2:#2C2C2E;--surface-3:#3A3A3C;
-  --surface-elevated:#2C2C2E;--surface-hover:#3A3A3C;--surface-pressed:#48484A;
-  --card-bg:#1C1C1E;--elevated-bg:#2C2C2E;
-  --chrome-bg:rgba(0,0,0,0.72);--chrome-line:rgba(84,84,88,0.55);
-  --border:rgba(84,84,88,0.60);--border-opaque:#38383A;--border-sub:rgba(84,84,88,0.40);
-  --fill-primary:rgba(118,118,128,0.24);--fill-secondary:rgba(118,118,128,0.18);--fill-tertiary:rgba(118,118,128,0.12);
-  --shadow-card:0 0 0 0.5px rgba(255,255,255,0.06),0 1px 0 rgba(0,0,0,0.4),0 8px 28px -12px rgba(0,0,0,0.8);
-  --shadow-hover:0 0 0 0.5px rgba(10,132,255,0.32),0 1px 0 rgba(0,0,0,0.4),0 12px 36px -12px rgba(10,132,255,0.45);
-  --shadow-modal:0 20px 60px -12px rgba(0,0,0,0.9);--shadow-popover:0 10px 32px -8px rgba(0,0,0,0.6);
-  --shadow-input:0 0 0 0.5px rgba(255,255,255,0.08);--shadow-input-focus:0 0 0 3.5px rgba(10,132,255,0.32);
-  --shadow-inset:inset 0 0 0 0.5px rgba(255,255,255,0.06);--focus-ring:0 0 0 4px rgba(10,132,255,0.36);
-}
-
-/* ============================================================
- * auto 模式 + 系统 dark —— @media dark { :root }
- * （之前 themes.css 里完全缺这个！tokens.css 里的是残缺版且顺序错误）
- * ============================================================ */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary:#0A84FF;--primary-hover:#409CFF;--primary-active:#0066CC;
-    --primary-bg:rgba(10,132,255,0.24);--primary-bg-hover:rgba(10,132,255,0.32);
-    --success:#30D158;--success-bg:rgba(48,209,88,0.18);--success-border:rgba(48,209,88,0.35);--success-fill:#30D158;
-    --danger:#FF453A;--danger-bg:rgba(255,69,58,0.16);--danger-border:rgba(255,69,58,0.32);--danger-fill:#FF453A;
-    /* 深色模式语义色更亮，白字压上去只有 2.0–3.7:1，所以改为近黑前景（5.8–10.4:1） */
-    --on-accent:#000000;
-    --warn:#FF9F0A;--warn-bg:rgba(255,159,10,0.18);
-    --info:#64D2FF;--info-bg:rgba(100,210,255,0.18);
-    --text-main:#F2F2F7;--text-muted:#98989D;--text-tertiary:#636366;
-    --text-disabled:rgba(235,235,245,0.30);--text-placeholder:rgba(235,235,245,0.40);
-    --bg:#000000;--surface:#1C1C1E;--surface-2:#2C2C2E;--surface-3:#3A3A3C;
-    --surface-elevated:#2C2C2E;--surface-hover:#3A3A3C;--surface-pressed:#48484A;
-    --card-bg:#1C1C1E;--elevated-bg:#2C2C2E;
-    --chrome-bg:rgba(0,0,0,0.72);--chrome-line:rgba(84,84,88,0.55);
-    --border:rgba(84,84,88,0.60);--border-opaque:#38383A;--border-sub:rgba(84,84,88,0.40);
-    --fill-primary:rgba(118,118,128,0.24);--fill-secondary:rgba(118,118,128,0.18);--fill-tertiary:rgba(118,118,128,0.12);
-    --shadow-card:0 0 0 0.5px rgba(255,255,255,0.06),0 1px 0 rgba(0,0,0,0.4),0 8px 28px -12px rgba(0,0,0,0.8);
-    --shadow-hover:0 0 0 0.5px rgba(10,132,255,0.32),0 1px 0 rgba(0,0,0,0.4),0 12px 36px -12px rgba(10,132,255,0.45);
-    --shadow-modal:0 20px 60px -12px rgba(0,0,0,0.9);--shadow-popover:0 10px 32px -8px rgba(0,0,0,0.6);
-    --shadow-input:0 0 0 0.5px rgba(255,255,255,0.08);--shadow-input-focus:0 0 0 3.5px rgba(10,132,255,0.32);
-    --shadow-inset:inset 0 0 0 0.5px rgba(255,255,255,0.06);--focus-ring:0 0 0 4px rgba(10,132,255,0.36);
-  }
-}
-
-/* —— 手动 dark 的组件硬编码 ——
-   与 tokens.css 的 @media dark 块保持同一套「只留真正不同」的三条；
-   这里靠 html[data-theme="dark"] 命中，不需要 :not() 守卫。 */
+/* —— 组件硬编码：以下三处读不到 token，只能按主题给值 ——
+   靠 html[data-theme="dark"] 命中；auto + 系统 dark 也由 applyTheme 落到同一属性上，
+   所以不再需要 tokens.css 里那套 `html:not([data-theme="light"])` 守卫。 */
 html[data-theme="dark"] .src-actions input[type="text"] {
-  background: rgba(118, 118, 128, 0.24);
+  background: var(--md-surface-sunken);
 }
 
 html[data-theme="dark"] .drop-zone {
-  border-color: var(--border);
+  border-color: var(--md-border-strong);
 }
 
-html[data-theme="dark"] .md-home-week-ring svg circle:first-child {
-  stroke: rgba(118, 118, 128, 0.32);
-}
-
-/* ============================================================
- * 强制 light（系统 dark + 手动 light）
- * ============================================================ */
-@media (prefers-color-scheme: dark) {
-  html[data-theme="light"] {
-    --primary:#007AFF;--primary-hover:#0A84FF;--primary-active:#0066CC;
-    --primary-bg:rgba(0,122,255,0.10);--primary-bg-hover:rgba(0,122,255,0.16);
-    --success:#34C759;--success-bg:rgba(52,199,89,0.12);--success-border:rgba(52,199,89,0.30);--success-fill:#1E7A32;
-    --danger:#FF3B30;--danger-bg:rgba(255,59,48,0.10);--danger-border:rgba(255,59,48,0.28);--danger-fill:#D70015;
-    /* 强制浅色：回到白字 + 深档填充 */
-    --on-accent:#FFFFFF;
-    --warn:#FF9500;--warn-bg:rgba(255,149,0,0.12);
-    --info:#5AC8FA;--info-bg:rgba(90,200,250,0.12);
-    --text-main:#1C1C1E;--text-muted:#6E6E73;--text-tertiary:#8E8E93;
-    --text-disabled:rgba(60,60,67,0.30);--text-placeholder:rgba(60,60,67,0.36);
-    --bg:#F2F2F7;--surface:#FFFFFF;--surface-2:#F2F2F7;--surface-3:#FFFFFF;
-    --surface-elevated:#FFFFFF;--surface-hover:#E8E8ED;--surface-pressed:#D1D1D6;
-    --card-bg:#FFFFFF;--elevated-bg:#FFFFFF;
-    --chrome-bg:rgba(242,242,247,0.78);--chrome-line:rgba(60,60,67,0.16);
-    --border:rgba(60,60,67,0.12);--border-opaque:#C6C6C8;--border-sub:rgba(60,60,67,0.08);
-    --fill-primary:rgba(120,120,128,0.16);--fill-secondary:rgba(120,120,128,0.08);--fill-tertiary:rgba(120,120,128,0.04);
-    --shadow-card:0 0 0 0.5px rgba(60,60,67,0.08),0 1px 0 rgba(0,0,0,0.02),0 4px 16px -8px rgba(28,28,30,0.08);
-    --shadow-hover:0 0 0 0.5px rgba(0,122,255,0.22),0 1px 0 rgba(0,0,0,0.02),0 8px 24px -12px rgba(0,122,255,0.20);
-    --shadow-modal:0 16px 48px -12px rgba(28,28,30,0.32);--shadow-popover:0 8px 24px -8px rgba(28,28,30,0.18);
-    --shadow-input:0 0 0 0.5px rgba(60,60,67,0.14);--shadow-input-focus:0 0 0 3.5px rgba(0,122,255,0.22);
-    --shadow-inset:inset 0 0 0 0.5px rgba(60,60,67,0.12);--focus-ring:0 0 0 4px rgba(0,122,255,0.28);
-  }
+html[data-theme="dark"] .md-home-week-ring svg circle:first-child,
+html[data-theme="dark"] .md-today-ring svg circle:first-child {
+  stroke: var(--md-border-strong);
 }

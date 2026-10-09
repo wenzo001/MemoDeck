@@ -178,6 +178,7 @@
     const progressMap = params.progressMap || {};
     const wrongbookEntries = params.wrongbookEntries || [];
     const weekDays = params.weekDays || 7;
+    const ts = params.nowIso || new Date().toISOString();
 
     const byStatus = countByStatus(allGids, progressMap);
     const wrongByStatus = countWrongbookByStatus(wrongbookEntries);
@@ -193,8 +194,17 @@
 
     return {
       total: byStatus.total,
+      // 记忆进度四档之一（新题 = progress 里根本不存在的题）
+      new: byStatus.new,
+      learning: byStatus.learning,
+      review: byStatus.review,
       learned: byStatus.total - byStatus.new,
       mastered: byStatus.mastered,
+      // 3.0 命名消歧（DESIGN.md §7.3）：跨会话记忆四档 = 新题 / 学习中 / 需复习 / 已掌握，
+      // 四档互斥、相加＝总题数（设计稿今日页就是这四个数）。
+      // 「需复习」= 记忆进度里的 review 档；它与错题本的「模糊」是两个不同的数、两个名字。
+      // 下面保留的 weak = learning + review，是 2.x「待复习」的旧口径，只喂给旧调用方。
+      needReview: byStatus.review,
       // due 与 learning / review 是重叠的两个维度（一道 learning 状态的到期题会同时
       // 计入两者），相加会让「待复习」超过题库总题数。状态四分类互斥，取 learning + review。
       weak: byStatus.learning + byStatus.review,
@@ -206,8 +216,34 @@
       weekTrend: weekTrend,
 
       todayReviewed: todayReviewed,
+      // 3.0 新增：今日到期题按记忆档拆开（今日页要写「含新题 x、学习中 y、需复习 z」）
+      dueBreak: dueBreakdown(allGids, progressMap, ts),
       targetDone: false // UI 侧根据 settings.dailyTarget 判断
     };
+  }
+
+  /**
+   * 3.0 新增：到期题按记忆四档拆分。
+   * 到期（时间维度）与状态（掌握维度）是两个正交的口径，
+   * 界面上把它们摆成「今日到期 N 题 · 含新题 a、学习中 b、需复习 c」而不是相加并列，
+   * 避免用户把两个维度读成一个集合的分区（DESIGN.md §7.2 第 3 条）。
+   */
+  function dueBreakdown(allGids, progressMap, nowIso) {
+    const ts = nowIso || new Date().toISOString();
+    const now = new Date(ts).getTime();
+    const out = { fresh: 0, learning: 0, review: 0, total: 0 };
+    (allGids || []).forEach(gid => {
+      const e = progressMap[gid];
+      if (!e) { out.fresh++; out.total++; return; }   // 从未见过 → 新题也算到期
+      if (e.status === 'mastered') return;
+      const nr = e.nextReviewAt ? new Date(e.nextReviewAt).getTime() : NaN;
+      if (isNaN(nr) || nr <= now) {
+        out.total++;
+        if (e.status === 'review') out.review++;
+        else out.learning++;
+      }
+    });
+    return out;
   }
 
   global.ExamStats = {
@@ -215,6 +251,7 @@
     countWrongbookByStatus,
     computeWeekTrend,
     buildDashboard,
+    dueBreakdown,
 
     // 暴露供单测
     _dayKey, _todayKey, _pastDayKeys

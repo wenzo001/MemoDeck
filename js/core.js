@@ -24,7 +24,7 @@
   function normalizeLegacyQuestion(item, type, group) {
     const q = { id: item.id, type, group, question: (item.question_template || item.question), explanation: item.explanation };
     if (type === 'fill_blank' || type === 'special_fill_blank') {
-      q.blanks = (item.blanks || []).map((b, i) => ({ index: i + 1, answer: b.answer }));
+      q.blanks = normalizeBlanks(item);
     } else if (type === 'true_false') {
       // 兼容多种「正确」表示：布尔 true / '√' / '对' / '正确'
       q.answer = item.answer === true || item.answer === '√' || item.answer === '对' || item.answer === '正确';
@@ -37,11 +37,35 @@
     return q;
   }
 
+  /**
+   * 填空题答案归一：**「|」只在这里出现一次**。
+   *
+   * DESIGN.md §4.2 的兼容决策：题库里用 `|` 分隔多空答案的老写法继续有效，
+   * 但拆分只发生在导入时；界面层从此只有「逐空输入」，不再出现分隔符、
+   * 也不再让用户手写分隔符。
+   * 优先级：显式 blanks 数组 > answer 字符串按 | 拆 > 按题干 ____ 数量补空位。
+   * @returns {Array<{index:number, answer:string}>}
+   */
+  function normalizeBlanks(item) {
+    const Types = global.ExamTypes;
+    const split = Types && Types.splitBlankAnswers ? Types.splitBlankAnswers : (s => String(s == null ? '' : s).split(/[|｜]/).map(x => x.trim()).filter(Boolean));
+    if (Array.isArray(item.blanks) && item.blanks.length) {
+      return item.blanks.map((b, i) => ({
+        index: (b && b.index) || i + 1,
+        answer: b && b.answer != null ? String(b.answer) : ''
+      }));
+    }
+    // 老写法：answer 是 "鸦片|1840"
+    const parts = split(item.answer);
+    if (parts.length) return parts.map((a, i) => ({ index: i + 1, answer: a }));
+    return [];
+  }
+
   function normalizeQuestion(item) {
     if (!item || typeof item !== 'object') throw new Error('题目必须是对象。');
     const q = { id: item.id, type: item.type, group: item.group, question: item.question, explanation: item.explanation };
     if (item.type === 'fill_blank' || item.type === 'special_fill_blank') {
-      q.blanks = (item.blanks || []).map((b, i) => ({ index: b.index || i + 1, answer: b.answer }));
+      q.blanks = normalizeBlanks(item);
     } else if (item.type === 'true_false') {
       q.answer = !!item.answer;
     } else if (item.type === 'single_choice' || item.type === 'multi_choice') {

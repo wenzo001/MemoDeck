@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <!-- ⚠️ 升级时与 config.js APP_VERSION + service-worker.js VERSION 三处同步 -->
-  <meta name="version" content="2.2.0">
-  <title>MemoDeck · 考试记忆系统 v2</title>
+  <meta name="version" content="3.0.0">
+  <title>MemoDeck · 安全生产题库</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/pages.css">
@@ -13,12 +13,13 @@
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/accessibility.css">
   <style>[v-cloak] { display: none; }</style>
-  <!-- PWA: manifest + 图标 + 主题色 -->
+  <!-- PWA: manifest + 图标 + 主题色（3.0 主题色 = 暖纸画布，不再是 iOS 蓝） -->
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" sizes="512x512" href="./assets/icon-512.png">
-  <meta name="theme-color" content="#007AFF">
+  <meta name="theme-color" content="#F8F5F0">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141210">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="MemoDeck">
@@ -30,22 +31,28 @@
       navigator.serviceWorker.register('./service-worker.js').catch(function () { /* file:// 下会失败，忽略 */ });
     });
   }
+  /* 首屏就把解析后的主题落到 data-theme 上，等 Vue 挂载再落会闪一下白/黑（FOUC）。
+     3.0 起 data-theme 永远有值，token 层的深色只认这一个属性（见 css/tokens.css）。 */
+  (function () {
+    try {
+      var m = localStorage.getItem('memo:theme') || 'auto';
+      var dark = m === 'dark' || (m === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+  })();
   </script>
 </head>
 <body>
-  <!-- 界面图标符号表：线性图标走 currentColor，与首页空状态插画同一套画法。
-       外壳（导航栏 / Tab / 主题切换）用这里的矢量图标，不再用 emoji —— 彩色 emoji
-       是「这是个网页/原型」最强的信号之一，而矢量图标可以跟随主题与文字色。
-       题库 features[].icon 若自带图标字符串，Tab 仍优先用它（见 app.js tabs）。 -->
+  <!-- 界面图标符号表：线性图标走 currentColor。
+       §4.5 规则 3：一个图标 = 一个内联 SVG，底色由容器给，图标只有字形；
+       §7.1 禁止 emoji 做图标（跨平台渲染不一致）。
+       题库 features[].icon 若自带图标字符串，导航仍优先用它（见 app.js navItems）。 -->
   <svg class="icon-defs" aria-hidden="true" focusable="false"><defs>
-    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.6 10.9 12 4.2l8.4 6.7V19a1.6 1.6 0 0 1-1.6 1.6H5.2A1.6 1.6 0 0 1 3.6 19z"/><path d="M9.4 20.6v-6.2h5.2v6.2"/></symbol>
-    <symbol id="i-study" viewBox="0 0 24 24"><path d="M12 6.6S10.1 4.9 4.6 4.9v13.3c5.5 0 7.4 1.7 7.4 1.7s1.9-1.7 7.4-1.7V4.9C13.9 4.9 12 6.6 12 6.6z"/><path d="M12 6.6v13.3"/></symbol>
-    <symbol id="i-exercise" viewBox="0 0 24 24"><path d="M4 20h4.2L20.3 7.9a2.2 2.2 0 0 0-3.1-3.1L5 16.9z"/><path d="M15.5 6.5 18.6 9.6"/></symbol>
-    <symbol id="i-practice" viewBox="0 0 24 24"><path d="M5.6 20.6V4.1"/><path d="M5.6 5.1h12.1l-2.4 4 2.4 4H5.6z"/></symbol>
-    <symbol id="i-preview" viewBox="0 0 24 24"><path d="M2.6 12S6.2 6.3 12 6.3 21.4 12 21.4 12 17.8 17.7 12 17.7 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="2.7"/></symbol>
-    <symbol id="i-exam" viewBox="0 0 24 24"><path d="M2.6 9.1 12 5.1l9.4 4-9.4 4z"/><path d="M6.7 11v4.6c0 1.4 2.4 2.5 5.3 2.5s5.3-1.1 5.3-2.5V11"/><path d="M21 9.4v5.3"/></symbol>
-    <symbol id="i-category" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-today" viewBox="0 0 24 24"><rect x="3.4" y="5.2" width="17.2" height="15.4" rx="2.2"/><path d="M3.4 9.8h17.2M8.2 3.4v3.6M15.8 3.4v3.6"/><circle cx="12" cy="15.2" r="1.8"/></symbol>
+    <symbol id="i-practice" viewBox="0 0 24 24"><path d="M4 20h4.2L20.3 7.9a2.2 2.2 0 0 0-3.1-3.1L5 16.9z"/><path d="M15.5 6.5 18.6 9.6"/></symbol>
     <symbol id="i-wrongbook" viewBox="0 0 24 24"><path d="M7.2 3.9h9.6a1.4 1.4 0 0 1 1.4 1.4v14.5L12 16.6l-6.2 3.2V5.3a1.4 1.4 0 0 1 1.4-1.4z"/><path d="M9.9 8.7l4.2 4.2M14.1 8.7l-4.2 4.2"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24"><path d="M12 6.6S10.1 4.9 4.6 4.9v13.3c5.5 0 7.4 1.7 7.4 1.7s1.9-1.7 7.4-1.7V4.9C13.9 4.9 12 6.6 12 6.6z"/><path d="M12 6.6v13.3"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.4" cy="12" r="1.7"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7.2h16M4 16.8h16"/><circle cx="9.6" cy="7.2" r="2.4"/><circle cx="14.4" cy="16.8" r="2.4"/></symbol>
     <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11 4.2l1.5 3.7 3.7 1.5-3.7 1.5L11 14.6 9.5 10.9 5.8 9.4l3.7-1.5z"/><path d="M17.6 14.8l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></symbol>
     <symbol id="i-arrow-forward" viewBox="0 0 24 24"><path d="M6.8 17.2 17.2 6.8"/><path d="M9.6 6.8h7.6v7.6"/></symbol>
@@ -53,7 +60,28 @@
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.9v2.2M12 18.9v2.2M2.9 12h2.2M18.9 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 1 1 9.6 4a7.1 7.1 0 0 0 10.6 10.6z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
-    <!-- 第二轮：功能页内的按钮图标 -->
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.8 12.8 9.6 17.6 19.2 6.6"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M8 12.2 10.9 15.2 16.2 9.4"/></symbol>
+    <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M9.2 9.2 14.8 14.8M14.8 9.2 9.2 14.8"/></symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.4"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" stroke-dasharray="2.6 2.8"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.2v13.6M5.2 12h13.6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.6 5.4 16.4 12l-6.8 6.6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.4 5.4 7.6 12l6.8 6.6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M10 8.6 15.8 12 10 15.4z" fill="currentColor" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9.6 5.4v13.2M14.4 5.4v13.2"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7.6 4h8.8v4.6a4.4 4.4 0 0 1-8.8 0z"/><path d="M7.6 5.6H4.8v1.6a3 3 0 0 0 2.9 3M16.4 5.6h2.8v1.6a3 3 0 0 1-2.9 3"/><path d="M12 13v3.6M8.6 20h6.8M9.8 16.6h4.4l.8 3.4H9z"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3.4s4.6 3.6 4.6 8.2a4.6 4.6 0 0 1-9.2 0c0-1.6.7-2.9 1.5-3.9.4 1.1 1.2 1.8 1.9 1.8 1.2 0 1.6-2.6 1.2-6.1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 2"/></symbol>
+    <symbol id="i-eye-slash" viewBox="0 0 24 24"><path d="M3.6 6.6 20.4 18.4"/><path d="M9.3 6.7A9.7 9.7 0 0 1 12 6.3c5.8 0 9.4 5.7 9.4 5.7a17 17 0 0 1-2.7 3.4M6.5 8.5A16.6 16.6 0 0 0 2.6 12s3.6 5.7 9.4 5.7c1 0 1.9-.2 2.7-.4"/></symbol>
+    <symbol id="i-preview" viewBox="0 0 24 24"><path d="M2.6 12S6.2 6.3 12 6.3 21.4 12 21.4 12 17.8 17.7 12 17.7 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="2.7"/></symbol>
+    <symbol id="i-exam" viewBox="0 0 24 24"><path d="M2.6 9.1 12 5.1l9.4 4-9.4 4z"/><path d="M6.7 11v4.6c0 1.4 2.4 2.5 5.3 2.5s5.3-1.1 5.3-2.5V11"/><path d="M21 9.4v5.3"/></symbol>
+    <symbol id="i-category" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-flag2" viewBox="0 0 24 24"><path d="M5.6 20.4V3.8"/><path d="M5.6 4.6h12.8v10.2H5.6z"/><path d="M9 4.6v10.2M12.4 4.6v10.2M5.6 8.1h12.8M5.6 11.6h12.8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.4" y="5.2" width="17.2" height="15.4" rx="2.2"/><path d="M3.4 9.8h17.2M8.2 3.4v3.6M15.8 3.4v3.6"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20.2h16"/><path d="M6.8 20.2v-7.4M12 20.2V5.6M17.2 20.2v-9.8"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="7.2" height="7.2" rx="1.8"/><rect x="13" y="3.8" width="7.2" height="7.2" rx="1.8"/><rect x="3.8" y="13" width="7.2" height="7.2" rx="1.8"/><rect x="13" y="13" width="7.2" height="7.2" rx="1.8"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3.4 16.6 9.2 10.8l3.6 3.6 7.8-8.2"/><path d="M15.4 6.2h5.2v5.2"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.8v10.6M7.8 10.4 12 14.6l4.2-4.2"/><path d="M4.4 17.6v1.4a1.4 1.4 0 0 0 1.4 1.4h12.4a1.4 1.4 0 0 0 1.4-1.4v-1.4"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 14.6V4M7.8 8.2 12 4l4.2 4.2"/><path d="M4.4 17.6v1.4a1.4 1.4 0 0 0 1.4 1.4h12.4a1.4 1.4 0 0 0 1.4-1.4v-1.4"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.6" y="8.6" width="11.4" height="11.4" rx="2.2"/><path d="M15.6 5.4a2.2 2.2 0 0 0-2.2-1.8H6a2.2 2.2 0 0 0-2.2 2.2v7.4c0 1 .7 1.8 1.6 2"/></symbol>
@@ -63,1104 +91,901 @@
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.4 6.6V4.8a1 1 0 0 1 1-1h3.2a1 1 0 0 1 1 1v1.8"/><path d="M6.6 6.6 7.5 20a1 1 0 0 0 1 .9h7a1 1 0 0 0 1-.9l.9-13.4"/><path d="M10.4 10.4v6.6M13.6 10.4v6.6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5.4 3.8h10.2L20.2 8.4v10.2a1.6 1.6 0 0 1-1.6 1.6H5.4a1.6 1.6 0 0 1-1.6-1.6V5.4a1.6 1.6 0 0 1 1.6-1.6z"/><path d="M7.8 3.8v5.4h7V3.8M7.8 14.6h8.4v5.6H7.8z"/></symbol>
     <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.8 21.2 20H2.8z"/><path d="M12 9.4v4.8"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.8 12.8 9.6 17.6 19.2 6.6"/></symbol>
-    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M8 12.2 10.9 15.2 16.2 9.4"/></symbol>
-    <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M9.2 9.2 14.8 14.8M14.8 9.2 9.2 14.8"/></symbol>
-    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" stroke-dasharray="2.6 2.8"/></symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.2v13.6M5.2 12h13.6"/></symbol>
-    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.6 5.4 16.4 12l-6.8 6.6"/></symbol>
-    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.4 5.4 7.6 12l6.8 6.6"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M10 8.6 15.8 12 10 15.4z" fill="currentColor" stroke-linejoin="round"/></symbol>
-    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7.6 4h8.8v4.6a4.4 4.4 0 0 1-8.8 0z"/><path d="M7.6 5.6H4.8v1.6a3 3 0 0 0 2.9 3M16.4 5.6h2.8v1.6a3 3 0 0 1-2.9 3"/><path d="M12 13v3.6M8.6 20h6.8M9.8 16.6h4.4l.8 3.4H9z"/></symbol>
-    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3.4s4.6 3.6 4.6 8.2a4.6 4.6 0 0 1-9.2 0c0-1.6.7-2.9 1.5-3.9.4 1.1 1.2 1.8 1.9 1.8 1.2 0 1.6-2.6 1.2-6.1z"/></symbol>
-    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 2"/></symbol>
-    <symbol id="i-eye-slash" viewBox="0 0 24 24"><path d="M3.6 6.6 20.4 18.4"/><path d="M9.3 6.7A9.7 9.7 0 0 1 12 6.3c5.8 0 9.4 5.7 9.4 5.7a17 17 0 0 1-2.7 3.4M6.5 8.5A16.6 16.6 0 0 0 2.6 12s3.6 5.7 9.4 5.7c1 0 1.9-.2 2.7-.4"/></symbol>
-    <symbol id="i-flag2" viewBox="0 0 24 24"><path d="M5.6 20.4V3.8"/><path d="M5.6 4.6h12.8v10.2H5.6z"/><path d="M9 4.6v10.2M12.4 4.6v10.2M5.6 8.1h12.8M5.6 11.6h12.8"/></symbol>
-    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.4" y="5.2" width="17.2" height="15.4" rx="2.2"/><path d="M3.4 9.8h17.2M8.2 3.4v3.6M15.8 3.4v3.6"/></symbol>
-    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20.2h16"/><path d="M6.8 20.2v-7.4M12 20.2V5.6M17.2 20.2v-9.8"/></symbol>
-    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="7.2" height="7.2" rx="1.8"/><rect x="13" y="3.8" width="7.2" height="7.2" rx="1.8"/><rect x="3.8" y="13" width="7.2" height="7.2" rx="1.8"/><rect x="13" y="13" width="7.2" height="7.2" rx="1.8"/></symbol>
-    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3.4 16.6 9.2 10.8l3.6 3.6 7.8-8.2"/><path d="M15.4 6.2h5.2v5.2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 11v5.4"/><circle cx="12" cy="8" r=".9" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.8 12a8.2 8.2 0 1 0 2.6-6"/><path d="M3.4 4.6v4.4h4.4"/><path d="M12 8v4.4l3 1.8"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></symbol>
   </defs></svg>
 
   <div id="app" v-cloak>
     <div class="container">
 
-      <!-- 吸顶应用栏：iOS 的 nav bar 只报「你在哪个屏」，不报应用名，也不放宣传语。
-           原来的 h1 品牌名 + 副标题 + 数据源横幅 + 三个灰胶囊按钮占掉首屏 211px（390 宽下
-           约 25% 的高度），是这里最重的网页痕迹。 -->
-      <div class="appchrome">
-        <header class="appbar">
-          <div class="appbar-lead">
-            <h1 class="appbar-title">{{ activeTabLabel }}</h1>
-            <span class="src-badge" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
-          </div>
-          <div class="appbar-actions">
-            <div class="theme-switch" role="tablist" aria-label="主题">
-              <button class="theme-btn" :class="{ active: themeMode === 'auto' }" @click="themeMode='auto'; applyTheme()" title="跟随系统" aria-label="跟随系统"><svg class="icon"><use href="#i-display"/></svg></button>
-              <button class="theme-btn" :class="{ active: themeMode === 'light' }" @click="themeMode='light'; applyTheme()" title="浅色" aria-label="浅色"><svg class="icon"><use href="#i-sun"/></svg></button>
-              <button class="theme-btn" :class="{ active: themeMode === 'dark' }" @click="themeMode='dark'; applyTheme()" title="深色" aria-label="深色"><svg class="icon"><use href="#i-moon"/></svg></button>
-            </div>
-            <button class="icon-btn" :class="{ active: showDataPanel }" @click="showDataPanel = !showDataPanel" aria-label="数据管理" title="数据管理"><svg class="icon"><use href="#i-sliders"/></svg></button>
-            <button class="icon-btn" @click="showAiModal = true" aria-label="AI 提示词" title="AI 提示词"><svg class="icon"><use href="#i-sparkles"/></svg></button>
-            <a class="icon-btn" v-if="managerUrl" :href="managerUrl" target="_blank" rel="noopener" aria-label="JSON 管理服务" title="JSON 管理服务"><svg class="icon"><use href="#i-arrow-forward"/></svg></a>
-          </div>
-        </header>
+      <!-- ============ 外壳：窄屏底部 3 栏 / 常规底部 4 栏 / ≥560 左侧栏 ============ -->
+      <div class="md-shell">
 
-        <nav class="tab-nav">
-          <button v-for="t in tabs" :key="t.key" :class="{ active: activeTab === t.key }" @click="switchTab(t.key)">
-            <span class="tab-emoji" v-if="t.icon">{{ t.icon }}</span><!-- 题库自带图标优先 -->
-            <svg class="icon" v-else aria-hidden="true"><use :href="'#i-' + t.key"/></svg>
-            <span class="tab-label">{{ t.label }}</span>
-            <span v-if="t.key === 'wrongbook' && wrongCount" class="badge">{{ wrongCount }}</span>
+        <!-- 左侧栏（560–1023 宽 200，1024+ 宽 232）。
+             数字角标与快捷键面板是宽屏独有（§5.4：移动端放不下，宽屏才补）。 -->
+        <nav class="md-sidebar" aria-label="主导航">
+          <button v-for="n in navItems" :key="n.key" class="md-nav-item"
+                  :class="{ active: activeTab === n.key }" @click="switchTab(n.key)"
+                  :aria-current="activeTab === n.key ? 'page' : null">
+            <svg class="icon" aria-hidden="true"><use :href="'#i-' + n.icon"/></svg>
+            <span>{{ n.label }}</span>
+            <span class="count" v-if="n.count">{{ n.count }}</span>
           </button>
+          <!-- 快捷键面板：仅桌面常驻（§5.4） -->
+          <div class="md-hotkeys">
+            <h4>快捷键</h4>
+            <dl>
+              <dt>看答案</dt><dd>空格</dd>
+              <dt>提交 / 下一题</dt><dd>Enter</dd>
+              <dt>上一题</dt><dd>←</dd>
+              <dt>选择选项</dt><dd>1–9</dd>
+            </dl>
+          </div>
         </nav>
-      </div>
 
-      <!-- 「数据管理」原来是一块内联展开的大面板，会把下面所有内容顶下去（而且默认就是展开的，
-           手机首屏整屏都是后台表单）。改成浮层 sheet：移动端从底部滑出、桌面居中。 -->
-      <div class="sheet-scrim" v-show="showDataPanel" @click.self="showDataPanel = false">
-        <section class="panel sheet" role="dialog" aria-modal="true" aria-label="数据管理"
-                 @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
-          <div class="sheet-grabber" aria-hidden="true"></div>
-          <div class="sheet-head">
-            <h2 class="sheet-title">数据管理</h2>
-            <button class="icon-btn" @click="showDataPanel = false" aria-label="关闭" title="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
-          </div>
-          <div class="sheet-sub">
-            <span class="src-badge" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
-            <span v-if="currentBank.meta.title">{{ currentBank.meta.title }}</span>
-          </div>
-          <div class="sheet-actions">
-            <button class="btn btn-text small" @click="downloadCurrent"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>下载 JSON</button>
-            <button class="btn btn-text small" @click="copyCurrent"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>复制 JSON</button>
-            <button class="btn btn-text small" @click="downloadRules"><svg class="icon" aria-hidden="true"><use href="#i-doc"/></svg>JSON 规则</button>
-          </div>
-        <div class="src-meta" v-if="sourceMeta.detail">{{ sourceMeta.detail }}</div>
-
-        <div class="src-actions">
-          <input type="text" v-model="remoteUrl" placeholder="输入远程 JSON 链接，例如 https://example.com/data.json" @keyup.enter="fetchUrl">
-          <button class="btn" @click="fetchUrl" :disabled="dataBusy"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>远程导入</button>
-          <button class="btn gray" @click="refresh" :disabled="!sourceMeta.url"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>刷新</button>
-          <button class="btn danger" @click="clearAndReload"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>清空缓存并重载</button>
-        </div>
-
-        <div class="drop-zone" :class="{ active: dragActive }">
-          拖拽 JSON 文件到此处即可导入，或
-          <label style="cursor:pointer; color:var(--primary); font-weight:500;">点击选择文件
-            <input type="file" accept=".json,application/json" style="display:none" @change="onFileChange">
-          </label>
-        </div>
-
-        <details style="margin-top:12px;">
-          <summary class="sub" style="cursor:pointer;"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>或粘贴 JSON 文本录入</summary>
-          <textarea class="paste-box" v-model="pasteText" placeholder='在此粘贴 {"view":"exam-bank", ...} JSON'></textarea>
-          <div class="src-actions" style="margin-top:8px;">
-            <button class="btn" @click="applyPaste"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>应用粘贴的 JSON</button>
-          </div>
-        </details>
-
-        <div class="err" v-if="dataError">{{ dataError }}</div>
-
-        <div class="expose-row">
-          <span class="lbl">当前卷：</span>
-          <span class="paper-switch" v-if="hasMultiplePapers">
-            <select v-model="currentPaperId" @change="switchPaper">
-              <option v-for="p in papers" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
-            </select>
-          </span>
-          <span v-else class="lbl">{{ papers.length ? papers[0].name : '（无数据）' }}</span>
-          <span class="lbl" style="margin-left:10px;">共 {{ totalQuestions }} 题</span>
-        </div>
-
-        <!-- ===== 数据备份 & 恢复 ===== -->
-        <div class="backup-row">
-          <div class="backup-title"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>数据备份与恢复</div>
-          <div class="backup-sub">备份将保存题库、学习进度、错题本、会话恢复等所有数据，生成一个 JSON 文件。</div>
-          <div class="backup-actions">
-            <button class="btn" @click="doExportBackup"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>导出备份</button>
-            <label class="btn gray backup-import-btn">
-              <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>导入备份
-              <input type="file" accept=".json,application/json" style="display:none" @change="onImportBackup($event)">
-            </label>
-            <button class="btn danger small" @click="doClearAll" v-if="confirmClearAll"><svg class="icon" aria-hidden="true"><use href="#i-warn"/></svg>确认清空全部数据？（二次确认）</button>
-          </div>
-        </div>
-
-        <!-- 原来挂在首屏标题下的宣传语：讲的是数据格式与来源，属于这里，不属于导航栏 -->
-        <div class="panel-foot">数据格式：试卷 JSON View 标准 v1.0 · 纯离线运行 · 支持远程导入与本地缓存</div>
-      </section>
-      </div>
-
-      <!-- ============ 阶段 1：首页 ============ -->
-      <section v-show="activeTab === 'home'" class="md-home">
-        <div class="md-home-empty" v-if="!bank.length">
-          <!-- 内联 SVG 空状态插画（用 currentColor，可被 CSS 控色） -->
-          <svg class="empty-svg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="28" y="32" width="64" height="44" rx="6" />
-              <path d="M28 42h64" />
-              <path d="M40 32V22a6 6 0 016-6h28a6 6 0 016 6v10" />
-              <circle cx="60" cy="66" r="4" fill="currentColor" stroke="none" opacity=".4" />
-            </g>
-            <g fill="currentColor" opacity=".5">
-              <circle cx="14" cy="18" r="2" />
-              <circle cx="108" cy="28" r="1.5" />
-              <circle cx="20" cy="88" r="1.5" />
-              <circle cx="100" cy="82" r="2" />
-            </g>
-          </svg>
-          <div class="md-home-empty-title">还没有题库</div>
-          <div class="md-home-empty-sub">请点右上角的「数据管理」导入 JSON，或拖拽文件到虚线框。</div>
-        </div>
-
-        <template v-else>
-          <!-- 今日学习卡 -->
-          <div class="md-home-card md-home-today">
-            <div class="md-home-card-head">
-              <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>今日学习</span>
-              <!-- 到期徽章（仅当有待复习时显示，红色气泡带数字） -->
-              <span class="md-home-due-badge" v-if="(dailyTask.stats.due || dashboard.due || 0) > 0">
-                {{ dailyTask.stats.due || dashboard.due }} 道待复习
-              </span>
-              <span class="md-home-card-sub" v-else>全部搞定</span>
-            </div>
-            <div class="md-home-big-num">
-              <span class="num">{{ dailyTask.queue.length || dashboard.due || 0 }}</span>
-              <span class="unit">题待处理</span>
-            </div>
-            <div class="md-home-today-bar">
-              <!-- 进度条：已掌握率（mastered/total） -->
-              <div class="bar-fill" :style="{ width: dashboard.total ? Math.round((dashboard.mastered / dashboard.total) * 100) + '%' : '0%' }"></div>
-            </div>
-            <div class="md-home-today-meta">
-              <span v-if="dashboard.total">已掌握 {{ dashboard.mastered }}/{{ dashboard.total }} · {{ dashboard.total ? Math.round(dashboard.mastered / dashboard.total * 100) : 0 }}%</span>
-              <span v-else>加载中...</span>
-            </div>
-            <div class="md-home-today-actions">
-              <button class="btn" @click="switchTab('study')"><svg class="icon" aria-hidden="true"><use href="#i-study"/></svg>开始学习</button>
-              <button class="btn gray small" @click="switchTab('practice')"><svg class="icon" aria-hidden="true"><use href="#i-practice"/></svg>记忆闯关</button>
-              <button class="btn ghost small" @click="switchTab('wrongbook')" v-if="wrongCount"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>复习错题 ({{ wrongCount }})</button>
-            </div>
-          </div>
-
-          <!-- 学习统计 -->
-          <div class="md-home-card md-home-stats">
-            <div class="md-home-card-head">
-              <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>学习统计</span>
-              <span class="md-home-card-sub">题库共 {{ dashboard.total }} 题</span>
-            </div>
-            <div class="md-home-stats-grid">
-              <div class="md-home-stat-item">
-                <div class="stat-num">{{ dashboard.learned }}</div>
-                <div class="stat-lbl">已学习</div>
+        <div class="md-shell-body">
+          <!-- 吸顶应用栏：只报「你在哪个屏」，不报应用名（iOS nav bar 惯例） -->
+          <div class="appchrome">
+            <header class="appbar">
+              <div class="appbar-lead">
+                <h1 class="appbar-title">{{ activeTabLabel }}</h1>
+                <span class="src-badge" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
+                <!-- 折叠屏当前形态标识（§8 规则 3：顶部常驻） -->
+                <span class="md-form-badge" v-if="formFactor">{{ formFactor }}</span>
               </div>
-              <div class="md-home-stat-item">
-                <div class="stat-num ok">{{ dashboard.mastered }}</div>
-                <div class="stat-lbl">已掌握</div>
-              </div>
-              <div class="md-home-stat-item">
-                <div class="stat-num warn">{{ dashboard.weak }}</div>
-                <div class="stat-lbl">待复习</div>
-              </div>
-              <div class="md-home-stat-item">
-                <div class="stat-num no">{{ dashboard.wrongTotal }}</div>
-                <div class="stat-lbl">错题</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 快捷入口 -->
-          <div class="md-home-card">
-            <div class="md-home-card-head">
-              <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>快捷入口</span>
-            </div>
-            <div class="md-home-quick-grid">
-              <button class="md-home-quick-btn" @click="switchTab('practice')">
-                <svg class="icon q-icon" aria-hidden="true"><use href="#i-practice"/></svg><span class="q-label">记忆闯关</span>
-              </button>
-              <button class="md-home-quick-btn" @click="switchTab('exam')">
-                <svg class="icon q-icon" aria-hidden="true"><use href="#i-exam"/></svg><span class="q-label">模拟考试</span>
-              </button>
-              <button class="md-home-quick-btn" @click="switchTab('wrongbook')">
-                <svg class="icon q-icon" aria-hidden="true"><use href="#i-wrongbook"/></svg><span class="q-label">错题本</span>
-              </button>
-              <button class="md-home-quick-btn" @click="switchTab('preview')">
-                <svg class="icon q-icon" aria-hidden="true"><use href="#i-preview"/></svg><span class="q-label">摸底速览</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 最近 7 天趋势 -->
-          <div class="md-home-card" v-if="dashboard.weekTrend && dashboard.weekTrend.length">
-            <div class="md-home-card-head">
-              <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-trend"/></svg>最近 7 天</span>
-            </div>
-            <div class="md-home-trend-grid">
-              <div class="md-home-trend-bar" v-for="(d, idx) in dashboard.weekTrend" :key="idx">
-                <div class="bars">
-                  <div class="bar-reviewed" :style="{ height: Math.min(100, d.reviewed * 8) + 'px' }" :title="'复习 ' + d.reviewed"></div>
-                  <div class="bar-mastered" :style="{ height: Math.min(100, d.mastered * 8) + 'px' }" :title="'掌握 ' + d.mastered"></div>
+              <div class="appbar-actions">
+                <div class="theme-switch" role="group" aria-label="主题">
+                  <button class="theme-btn" :class="{ active: themeMode === 'auto' }" @click="setTheme('auto')" title="跟随系统" aria-label="跟随系统"><svg class="icon"><use href="#i-display"/></svg></button>
+                  <button class="theme-btn" :class="{ active: themeMode === 'light' }" @click="setTheme('light')" title="浅色" aria-label="浅色"><svg class="icon"><use href="#i-sun"/></svg></button>
+                  <button class="theme-btn" :class="{ active: themeMode === 'dark' }" @click="setTheme('dark')" title="深色" aria-label="深色"><svg class="icon"><use href="#i-moon"/></svg></button>
                 </div>
-                <div class="day-label">{{ d.day.slice(5) }}</div>
+                <button class="icon-btn" @click="showAiModal = true" aria-label="AI 提示词" title="AI 提示词"><svg class="icon"><use href="#i-sparkles"/></svg></button>
+                <a class="icon-btn" v-if="managerUrl" :href="managerUrl" target="_blank" rel="noopener" aria-label="JSON 管理服务" title="JSON 管理服务"><svg class="icon"><use href="#i-arrow-forward"/></svg></a>
               </div>
-            </div>
-            <!-- 本周活跃天数进度环 -->
-            <div class="md-home-week-ring">
-              <!-- circumference ≈ 2*π*18 = 113.1 -->
-              <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
-                <circle cx="26" cy="26" r="20" fill="none" stroke="rgba(120,120,128,0.16)" stroke-width="4" />
-                <circle cx="26" cy="26" r="20" fill="none" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"
-                        :stroke-dasharray="125.6 * Math.min(1, weekActiveDays / Math.max(weekGoalDays, 1)) + ' 125.6'"
-                        stroke-dashoffset="0" transform="rotate(-90 26 26)"
-                        style="transition: stroke-dasharray 0.6s cubic-bezier(0.25, 0.1, 0.25, 1)" />
+            </header>
+            <!-- 练习模式的分段控件挪进练习页本体：应用栏只报当前入口，模式属于页面内容 -->
+          </div>
+
+          <!-- 首次折叠/展开的一次性提示（§8 规则 4：3 秒自动消失） -->
+          <div class="md-form-toast" v-if="formHint">{{ formHint }}<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></div>
+
+          <!-- ============ 今日 ============ -->
+          <section v-show="activeTab === 'today'" class="md-today" :aria-label="'今日'">
+            <!-- 冷启动铁律（§5.2）：首屏不是空态插画，内置兜底题库直接可练 -->
+            <div class="md-home-empty" v-if="!bank.length">
+              <svg class="empty-svg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="28" y="32" width="64" height="44" rx="6" /><path d="M28 42h64" />
+                  <path d="M40 32V22a6 6 0 016-6h28a6 6 0 016 6v10" />
+                </g>
               </svg>
-              <div class="md-home-week-ring-text">
-                <span class="wr-num">{{ weekActiveDays }}</span>
-                <span class="wr-unit">/ {{ weekGoalDays }} 天</span>
-                <div class="wr-sub">本周活跃</div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <!-- ============ 阶段 2：学习/背诵模式 ============ -->
-      <section v-show="activeTab === 'study'" class="md-study">
-        <div class="md-study-empty" v-if="!bank.length">
-          <div class="md-home-empty-title">还没有题库</div>
-          <div class="md-home-empty-sub">请点右上角的「数据管理」导入 JSON，或拖拽文件到虚线框。</div>
-        </div>
-
-        <!-- ===== 模式 A：setup ===== -->
-        <template v-else-if="studyMode === 'setup'">
-          <div class="md-study-setup">
-            <div class="md-study-setup-head" v-if="resumeStudy">
-              <button class="btn ghost small" @click="studyRestart">放弃上次</button>
-            </div>
-
-            <!-- 恢复点 -->
-            <div class="md-study-resume" v-if="resumeStudy">
-              <div class="resume-info">
-                <span class="resume-icon"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg></span>
-                <span>上次学习做到第 {{ resumeStudy.currentIndex + 1 }} / {{ resumeStudy.queueGids.length }} 题</span>
-              </div>
-              <div>
-                <button class="btn small" @click="studyResume">继续上次</button>
+              <div class="md-home-empty-title">还没有题库</div>
+              <div class="md-home-empty-sub">去「题库」页粘贴或选择 JSON 文件；也可以直接告诉 AI 你要什么题。</div>
+              <div class="md-home-today-actions" style="justify-content:center; margin-top:16px;">
+                <button class="btn" @click="switchTab('bank')"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>导入题库</button>
               </div>
             </div>
 
-            <!-- 范围选择 -->
-            <div class="md-study-group">
-              <div class="md-study-group-title">学习范围</div>
-              <label class="md-study-radio" :class="{ active: studyScope === 'today' }">
-                <input type="radio" value="today" v-model="studyScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">今日复习</span>
-                <span class="md-study-badge">{{ studyScopeCounts.today }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: studyScope === 'unmastered' }">
-                <input type="radio" value="unmastered" v-model="studyScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">未掌握题目</span>
-                <span class="md-study-badge">{{ studyScopeCounts.unmastered }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: studyScope === 'all' }">
-                <input type="radio" value="all" v-model="studyScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">全部题目</span>
-                <span class="md-study-badge">{{ studyScopeCounts.all }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: studyScope === 'wrongbook' }">
-                <input type="radio" value="wrongbook" v-model="studyScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">错题本</span>
-                <span class="md-study-badge">{{ studyScopeCounts.wrongbook }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: studyScope === 'custom' }">
-                <input type="radio" value="custom" v-model="studyScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">自定义范围</span>
-                <span class="md-study-badge" v-if="studyScope === 'custom'">{{ studyCustomCount }}</span>
-              </label>
+            <template v-else>
+              <div class="md-dayline">
+                <span class="md-dayline-date">{{ todayLabel }}</span>
+                <span class="md-dayline-week">本周 {{ weekActiveDays }}/{{ weekGoalDays }} 天</span>
+              </div>
 
-              <!-- 自定义子表单 -->
-              <div class="md-study-custom" v-if="studyScope === 'custom'" @focus="studyAutoFillCustomEnd">
-                <div class="custom-range">
-                  <label>开始：</label><input type="number" v-model.number="studyCustomStart" min="1" :max="bank.length">
-                  <label>结束：</label><input type="number" v-model.number="studyCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
+              <!-- 今日任务：单一焦点「今天该学什么」 -->
+              <div class="md-home-card is-main md-home-today">
+                <div class="md-home-card-head">
+                  <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>今日任务</span>
+                  <!-- §7.5：每日目标从「数据层就绪但界面不可见」变成可见 + 可改 -->
+                  <button class="md-chip" @click="editDailyTarget" aria-label="每日目标题数，点击修改">
+                    <svg class="icon" aria-hidden="true"><use href="#i-target"/></svg>每日目标 {{ dailyTargetN }} 题
+                  </button>
                 </div>
-                <div class="custom-types">
-                  <div class="types-title">题型筛选：</div>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.single_choice">单选</label>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.multi_choice">多选</label>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.true_false">判断</label>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.fill_blank">填空</label>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.special_fill_blank">特填</label>
-                  <label class="type-check"><input type="checkbox" v-model="studyTypes.essay">简答</label>
+                <div class="md-home-big-num">
+                  <span class="num">{{ todayDueCount }}</span>
+                  <span class="unit">题待学</span>
+                  <span class="md-home-due-badge" v-if="todayOverdueCount">{{ todayOverdueCount }} 题到期</span>
+                </div>
+                <div class="md-home-today-bar" role="img" :aria-label="'今日进度 ' + todayLearnedCount + ' / ' + dailyTargetN">
+                  <div class="bar-fill" :style="{ width: todayProgressPct + '%' }"></div>
+                </div>
+                <div class="md-home-today-meta">
+                  已学 {{ todayLearnedCount }} 题 · 剩 {{ todayRemainingCount }} 题
+                  <span class="md-home-est"> · 预计 {{ todayEtaMinutes }} 分钟</span>
+                </div>
+                <div class="md-home-today-actions">
+                  <button class="btn" @click="startToday"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始学习</button>
+                  <button class="btn gray" v-if="wrongCount" @click="startWeakAttack"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>攻薄弱项 · {{ wrongCount }} 题</button>
                 </div>
               </div>
-            </div>
 
-            <!-- 策略 + 数量 -->
-            <div class="md-study-group">
-              <div class="md-study-group-title">队列生成</div>
-              <div class="md-study-strategy">
-                <label><input type="radio" value="due" v-model="studyStrategy">到期优先</label>
-                <label><input type="radio" value="sequential" v-model="studyStrategy">顺序学习</label>
-                <label><input type="radio" value="random" v-model="studyStrategy">随机洗牌</label>
-              </div>
-              <div class="md-study-per">
-                <span class="per-label">每次：</span>
-                <label class="per-chip"><input type="radio" value="10" v-model="studyPerSession"><span>10</span></label>
-                <label class="per-chip"><input type="radio" value="20" v-model="studyPerSession"><span>20</span></label>
-                <label class="per-chip active" :class="{ active: studyPerSession === 30 }"><input type="radio" value="30" v-model="studyPerSession"><span>30</span></label>
-                <label class="per-chip"><input type="radio" value="50" v-model="studyPerSession"><span>50</span></label>
-                <label class="per-chip"><input type="radio" value="all" v-model="studyPerSession"><span>全部</span></label>
-                <label class="per-chip"><input type="radio" value="custom" v-model="studyPerSession"><span>自定义</span><input v-if="studyPerSession === 'custom'" type="number" min="1" max="500" v-model.number="studyPerSessionCustom" class="per-custom-input"></label>
-              </div>
-            </div>
+              <!-- 恢复提示卡（§4.1 三段式 + §7.5 时间戳） -->
+              <resume-card :resumes="allResumes" @resume="resumeFrom" @dismiss="dismissResume"></resume-card>
 
-            <div class="md-study-summary-line">
-              将学习 <b>{{ studyAvailableCount }}</b> 题
-            </div>
-
-            <button class="md-study-start-btn" @click="studyStart" :disabled="!studyAvailableCount">
-              <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始学习
-            </button>
-          </div>
-        </template>
-
-        <!-- ===== 模式 B：running ===== -->
-        <template v-else-if="studyMode === 'running'">
-          <!-- 顶部进度条 -->
-          <div class="md-study-topbar">
-            <button class="md-study-exit-btn" @click="studyExit" title="退出（进度自动保存）">← 退出</button>
-            <div class="md-study-progress-bar">
-              <div class="progress-fill" :style="{ width: studyProgressPct + '%' }"></div>
-            </div>
-            <div class="md-study-top-info">
-              <span class="md-study-count">{{ studyCurrentProgress }}</span>
-              <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(studyElapsedSec) }}</span>
-            </div>
-          </div>
-
-          <!-- 卡片堆叠区 -->
-          <div class="md-study-stage"
-               @touchstart.passive="studyOnSwipeStart"
-               @touchmove="studyOnSwipeMove"
-               @touchend="studyOnSwipeEnd"
-               @mousedown="studyOnSwipeStart"
-               @mousemove="studyOnSwipeMove"
-               @mouseup="studyOnSwipeEnd"
-               @mouseleave="studyOnSwipeEnd">
-
-            <!-- 下一题预览（如果有） -->
-            <div class="md-study-card md-study-card-back" v-if="studyNextItem">
-              <div class="card-inner">
-                <div class="tag">{{ studyNextItem.typeLabel }}</div>
-                <div class="question">{{ studyNextItem.question }}</div>
-              </div>
-            </div>
-
-            <!-- 当前卡片 -->
-            <div class="md-study-card md-study-card-front"
-                 :style="{
-                   transform: 'translateX(' + studySwipeX + 'px) rotate(' + (studySwipeX / 30) + 'deg)',
-                   transition: studySwipeActive ? 'none' : 'transform 0.25s ease-out'
-                 }"
-                 v-if="studyCurrentItem">
-              <div class="card-inner">
-                <div class="md-study-swipe-hint swipe-right" v-if="studyShowAnswer && studySwipeX > 20"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了</div>
-                <div class="md-study-swipe-hint swipe-left" v-if="studyShowAnswer && studySwipeX < -20"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还不会</div>
-
-                <div class="md-study-card-head">
-                  <span class="tag">{{ studyCurrentItem.typeLabel }}</span>
-                  <span class="md-study-prev">{{ studyPrevHint }}</span>
+              <!-- 近 7 天学习量 -->
+              <div class="md-home-card" v-if="dashboard.weekTrend && dashboard.weekTrend.length">
+                <div class="md-home-card-head">
+                  <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-trend"/></svg>近 7 天学习量</span>
                 </div>
-
-                <div class="question">{{ studyCurrentItem.q }}</div>
-
-                <div class="md-study-answer-area">
-                  <div v-if="!studyShowAnswer" class="md-study-answer-hidden">
-                    <button class="md-study-reveal-btn" @click="studyShowAnswer = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>想好了，看答案</button>
-                    <div class="md-study-hint-mobile" v-if="studyAvailableCount">
-                      看完答案：右滑记住 / 左滑还不会
+                <div class="md-home-trend-grid">
+                  <div class="md-home-trend-bar" v-for="(d, idx) in dashboard.weekTrend" :key="idx">
+                    <div class="bars">
+                      <div class="bar-reviewed" :style="{ height: Math.min(100, d.reviewed * 8) + 'px' }" :title="'复习 ' + d.reviewed"></div>
+                      <div class="bar-mastered" :style="{ height: Math.min(100, d.mastered * 8) + 'px' }" :title="'掌握 ' + d.mastered"></div>
+                      <div class="bar-zero" v-if="!d.reviewed && !d.mastered"></div>
                     </div>
-                  </div>
-                  <answer-view v-else :item="studyCurrentItem"></answer-view>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 底部操作栏（固定） -->
-          <div class="md-study-footer">
-            <button class="md-study-fail-btn" :class="{ 'swipe-over': studySwipeX < -120 }"
-                    @click="studyShowAnswer && studyMark(false)">
-              <svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还不会
-            </button>
-            <button class="md-study-pass-btn" :class="{ 'swipe-over': studySwipeX > 120 }"
-                    @click="studyShowAnswer && studyMark(true)">
-              <svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了
-            </button>
-          </div>
-        </template>
-
-        <!-- ===== 模式 C：summary ===== -->
-        <template v-else-if="studyMode === 'summary'">
-          <div class="md-study-summary">
-            <div class="md-study-summary-emoji"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg></div>
-            <h2 class="md-study-summary-title">本次学习完成</h2>
-            <div class="md-study-summary-sub">共 {{ studyTotal }} 题 · 耗时 {{ studyFormatDuration(studyElapsedSec) }}</div>
-
-            <div class="md-study-summary-grid">
-              <div class="md-study-summary-card ok">
-                <div class="sum-num">{{ studyPassCount }}</div>
-                <div class="sum-lbl">记住了</div>
-              </div>
-              <div class="md-study-summary-card no">
-                <div class="sum-num">{{ studyFailCount }}</div>
-                <div class="sum-lbl">还不会</div>
-              </div>
-              <div class="md-study-summary-card star">
-                <div class="sum-num">{{ studyNewMastered }}</div>
-                <div class="sum-lbl">新掌握</div>
-              </div>
-              <div class="md-study-summary-card warn">
-                <div class="sum-num">{{ studyNewWrong }}</div>
-                <div class="sum-lbl">进错题</div>
-              </div>
-            </div>
-
-            <div class="md-study-summary-streak" v-if="studyMaxStreak >= 2">
-              本次 streak 最高 {{ studyMaxStreak }}
-            </div>
-
-            <div class="md-study-summary-actions">
-              <button class="btn" @click="studyRestart">再来一轮</button>
-              <button class="btn ghost" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题</button>
-              <button class="btn ghost" @click="switchTab('home')"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>返回首页</button>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <!-- ============ 阶段 3：练习模式 ============ -->
-      <section v-show="activeTab === 'exercise'" class="md-exercise">
-        <div class="md-study-empty" v-if="!bank.length">
-          <div class="md-home-empty-title">还没有题库</div>
-          <div class="md-home-empty-sub">请点右上角的「数据管理」导入 JSON。</div>
-        </div>
-
-        <!-- ===== setup ===== -->
-        <template v-else-if="exerciseMode === 'setup'">
-          <div class="md-study-setup">
-            <div class="md-study-setup-head" v-if="resumeExercise">
-              <button class="btn ghost small" @click="exerciseRestart">放弃上次</button>
-            </div>
-
-            <div class="md-study-resume" v-if="resumeExercise">
-              <div class="resume-info"><span class="resume-icon"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg></span><span>上次练习做到第 {{ resumeExercise.currentIndex + 1 }} / {{ resumeExercise.queueGids.length }} 题</span></div>
-              <div>
-                <button class="btn small" @click="exerciseResume">继续上次</button>
-              </div>
-            </div>
-
-            <!-- 范围（默认全部，练习通常用随机洗牌） -->
-            <div class="md-study-group">
-              <div class="md-study-group-title">练习范围</div>
-              <label class="md-study-radio" :class="{ active: exerciseScope === 'all' }">
-                <input type="radio" value="all" v-model="exerciseScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">全部题目</span>
-                <span class="md-study-badge">{{ bankGids.length }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: exerciseScope === 'unmastered' }">
-                <input type="radio" value="unmastered" v-model="exerciseScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">未掌握</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: exerciseScope === 'wrongbook' }">
-                <input type="radio" value="wrongbook" v-model="exerciseScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">错题本</span>
-                <span class="md-study-badge">{{ exerciseWrongbookCount }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: exerciseScope === 'custom' }">
-                <input type="radio" value="custom" v-model="exerciseScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">自定义范围</span>
-                <span class="md-study-badge" v-if="exerciseScope === 'custom'">{{ exerciseBadgeCount }}</span>
-              </label>
-              <div class="md-study-custom" v-if="exerciseScope === 'custom'" @focus="exerciseAutoFillCustomEnd">
-                <div class="custom-range">
-                  <label>开始：</label><input type="number" v-model.number="exerciseCustomStart" min="1" :max="bank.length">
-                  <label>结束：</label><input type="number" v-model.number="exerciseCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
-                </div>
-                <div class="custom-types">
-                  <div class="types-title">题型：</div>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.single_choice">单选</label>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.multi_choice">多选</label>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.true_false">判断</label>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.fill_blank">填空</label>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.special_fill_blank">特填</label>
-                  <label class="type-check"><input type="checkbox" v-model="exerciseTypes.essay">简答</label>
-                </div>
-              </div>
-            </div>
-
-            <!-- 策略 + 数量 -->
-            <div class="md-study-group">
-              <div class="md-study-group-title">出题方式</div>
-              <div class="md-study-strategy">
-                <label><input type="radio" value="random" v-model="exerciseStrategy">随机洗牌</label>
-                <label><input type="radio" value="sequential" v-model="exerciseStrategy">顺序出题</label>
-              </div>
-              <div class="md-study-per">
-                <span class="per-label">数量：</span>
-                <label class="per-chip"><input type="radio" value="10" v-model="exercisePerSession"><span>10</span></label>
-                <label class="per-chip"><input type="radio" value="20" v-model="exercisePerSession"><span>20</span></label>
-                <label class="per-chip"><input type="radio" value="30" v-model="exercisePerSession"><span>30</span></label>
-                <label class="per-chip"><input type="radio" value="50" v-model="exercisePerSession"><span>50</span></label>
-                <label class="per-chip active" :class="{ active: exercisePerSession === 'all' }"><input type="radio" value="all" v-model="exercisePerSession"><span>全部</span></label>
-                <label class="per-chip"><input type="radio" value="custom" v-model="exercisePerSession"><span>自定义</span><input v-if="exercisePerSession === 'custom'" type="number" min="1" max="500" v-model.number="exercisePerSessionCustom" class="per-custom-input"></label>
-              </div>
-            </div>
-
-            <div class="md-study-summary-line">将练习 <b>{{ exerciseBadgeCount }}</b> 题</div>
-            <button class="md-study-start-btn" @click="exerciseStart" :disabled="!exerciseBadgeCount"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始练习</button>
-          </div>
-        </template>
-
-        <!-- ===== running（核心差异：自己作答→系统判分） ===== -->
-        <template v-else-if="exerciseMode === 'running'">
-          <div class="md-study-topbar">
-            <button class="md-study-exit-btn" @click="exerciseExit" title="退出（进度自动保存）">← 退出</button>
-            <div class="md-study-progress-bar"><div class="progress-fill" :style="{ width: exerciseProgressPct + '%' }"></div></div>
-            <div class="md-study-top-info">
-              <span class="md-study-count">{{ exerciseCurrentProgress }}</span>
-              <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(exerciseElapsedSec) }}</span>
-            </div>
-          </div>
-
-          <div class="md-study-stage"
-               @touchstart.passive="exerciseOnSwipeStart"
-               @touchmove="exerciseOnSwipeMove"
-               @touchend="exerciseOnSwipeEnd"
-               @mousedown="exerciseOnSwipeStart"
-               @mousemove="exerciseOnSwipeMove"
-               @mouseup="exerciseOnSwipeEnd"
-               @mouseleave="exerciseOnSwipeEnd">
-
-            <div class="md-study-card md-study-card-back" v-if="exerciseNextItem">
-              <div class="card-inner">
-                <div class="tag">{{ exerciseNextItem.typeLabel }}</div>
-                <div class="question">{{ exerciseNextItem.question }}</div>
-              </div>
-            </div>
-
-            <div class="md-study-card md-study-card-front"
-                 :style="{
-                   transform: 'translateX(' + exerciseSwipeX + 'px)',
-                   transition: exerciseSwipeActive ? 'none' : 'transform 0.25s ease-out'
-                 }"
-                 v-if="exerciseCurrentItem">
-              <div class="card-inner">
-                <div class="md-study-card-head">
-                  <span class="tag">{{ exerciseCurrentItem.typeLabel }}</span>
-                  <span class="md-study-prev">{{ exercisePrevHint }}</span>
-                </div>
-                <div class="question">{{ exerciseCurrentItem.question }}</div>
-
-                <!-- 作答区：根据题型渲染不同交互 -->
-                <div class="md-exercise-answer">
-
-                  <!-- 单选 -->
-                  <template v-if="exerciseCurrentItem.rawType === 'single_choice'">
-                    <div class="md-opt-list">
-                      <button v-for="(val, key) in exerciseCurrentItem.options" :key="key"
-                              class="md-opt"
-                              :class="{ selected: exerciseChoice === key,
-                                        correct: exerciseAnswerSubmitted && key === exerciseCurrentItem.answer,
-                                        wrong: exerciseAnswerSubmitted && exerciseChoice === key && key !== exerciseCurrentItem.answer }"
-                              :disabled="exerciseAnswerSubmitted"
-                              @click="exerciseOptionClick(key)">
-                        <span class="md-opt-key">{{ key }}</span>{{ val }}
-                      </button>
-                    </div>
-                  </template>
-
-                  <!-- 多选 -->
-                  <template v-else-if="exerciseCurrentItem.rawType === 'multi_choice'">
-                    <div class="md-opt-list">
-                      <button v-for="(val, key) in exerciseCurrentItem.options" :key="key"
-                              class="md-opt"
-                              :class="{ selected: exerciseIsOptionOn(key),
-                                        correct: exerciseAnswerSubmitted && (Array.isArray(exerciseCurrentItem.answer) && exerciseCurrentItem.answer.includes(key)),
-                                        wrong: exerciseAnswerSubmitted && exerciseIsOptionOn(key) && !(Array.isArray(exerciseCurrentItem.answer) && exerciseCurrentItem.answer.includes(key)) }"
-                              :disabled="exerciseAnswerSubmitted"
-                              @click="exerciseOptionClick(key)">
-                        <span class="md-opt-key">{{ key }}</span>{{ val }}
-                      </button>
-                    </div>
-                  </template>
-
-                  <!-- 判断 -->
-                  <template v-else-if="exerciseCurrentItem.rawType === 'true_false'">
-                    <div class="md-tf">
-                      <button class="md-tf-btn"
-                              :class="{ selected: exerciseChoice === 'true',
-                                        correct: exerciseAnswerSubmitted && exerciseCurrentItem.answer === true,
-                                        wrong: exerciseAnswerSubmitted && exerciseChoice === 'true' && exerciseCurrentItem.answer !== true }"
-                              :disabled="exerciseAnswerSubmitted"
-                              @click="exerciseOptionClick('true')"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>正确</button>
-                      <button class="md-tf-btn"
-                              :class="{ selected: exerciseChoice === 'false',
-                                        correct: exerciseAnswerSubmitted && exerciseCurrentItem.answer === false,
-                                        wrong: exerciseAnswerSubmitted && exerciseChoice === 'false' && exerciseCurrentItem.answer !== false }"
-                              :disabled="exerciseAnswerSubmitted"
-                              @click="exerciseOptionClick('false')"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>错误</button>
-                    </div>
-                  </template>
-
-                  <!-- 填空 / 特填 -->
-                  <template v-else-if="['fill_blank', 'special_fill_blank'].indexOf(exerciseCurrentItem.rawType) >= 0">
-                    <div class="md-exercise-blank">
-                      <input type="text" v-model="exerciseInput" :disabled="exerciseAnswerSubmitted"
-                             :placeholder="'请输入答案'" class="md-field">
-                    </div>
-                  </template>
-
-                  <!-- 简答 -->
-                  <template v-else-if="exerciseCurrentItem.rawType === 'essay'">
-                    <textarea v-model="exerciseInput" :disabled="exerciseAnswerSubmitted" rows="4"
-                              class="md-field tall" placeholder="请写出你的答案..."></textarea>
-                  </template>
-
-                  <!-- 判分结果 + 标准答案 -->
-                  <!-- ⚠️ exerciseFeedback 只有客观题会被赋值；填空/简答提交后它是 null
-                       （下面的自评块靠 !exerciseFeedback 判定）。这里曾经无条件读
-                       exerciseFeedback.correct，所以填空题点提交就整棵树抛错、页面变白。 -->
-                  <template v-if="exerciseAnswerSubmitted">
-                    <div class="md-feedback" :class="exerciseFeedback ? (exerciseFeedback.correct ? 'ok' : 'no') : ''">
-                      <div class="md-feedback-icon" v-if="exerciseFeedback"><svg class="icon" aria-hidden="true"><use :href="exerciseFeedback.correct ? '#i-check-circle' : '#i-x-circle'"/></svg></div>
-                      <div class="md-feedback-text">标准答案：<b>{{ exerciseCurrentItem.a }}</b></div>
-                    </div>
-                  </template>
-
-                  <!-- 主观题：自评按钮（提交后显示） -->
-                  <div class="md-exercise-self-judge"
-                       v-if="exerciseAnswerSubmitted && !exerciseFeedback && ['fill_blank','special_fill_blank','essay'].indexOf(exerciseCurrentItem.rawType) >= 0">
-                    <div class="md-exercise-self-label">对照标准答案自评：</div>
-                    <button class="md-exercise-self-btn ok" @click="exerciseSelfJudge(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对了</button>
-                    <button class="md-exercise-self-btn no" @click="exerciseSelfJudge(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错了</button>
+                    <div class="day-label">{{ d.day.slice(5) }}</div>
                   </div>
                 </div>
+                <!-- §7.2 第 5 条：趋势里的「答错」是估算值（系统不记录每次作答，
+                     只按"有错题记录且最近复习日在这天"近似）。既然它是估算的，
+                     这一版就不画它 —— 数据层字段 weekTrend[].wrong 仍在，界面不消费。 -->
+                <caliber-note icon="i-chart">柱高＝当天学习题数；深色柱为当日新增掌握。当日「答错」数是近似估算而非逐次记录，因此这里不显示答错柱。</caliber-note>
               </div>
-            </div>
-          </div>
 
-          <!-- 底部操作栏 -->
-          <div class="md-study-footer">
-            <button v-if="!exerciseAnswerSubmitted" class="md-study-pass-btn" :class="{ disabled: exerciseCurrentItem && (exerciseCurrentItem.rawType === 'single_choice' || exerciseCurrentItem.rawType === 'true_false') && !exerciseChoice }"
-                    @click="exerciseSubmit"
-                    :disabled="(exerciseCurrentItem && (exerciseCurrentItem.rawType === 'single_choice' || exerciseCurrentItem.rawType === 'true_false') && !exerciseChoice) || (exerciseCurrentItem && exerciseCurrentItem.rawType === 'multi_choice' && exerciseMultiSel.length === 0)">
-              <svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>提交答案
-            </button>
-            <button v-else class="md-study-pass-btn"
-                    @click="exerciseNext">
-              {{ exerciseIndex + 1 < exerciseTotal ? '下一题' : '查看结果' }}
-            </button>
-          </div>
-        </template>
-
-        <!-- ===== summary ===== -->
-        <template v-else-if="exerciseMode === 'summary'">
-          <div class="md-study-summary">
-            <div class="md-study-summary-emoji"><svg class="icon" aria-hidden="true"><use :href="exerciseSummaryIcon"/></svg></div>
-            <h2 class="md-study-summary-title">练习完成</h2>
-            <div class="md-study-summary-sub">共 {{ exerciseTotal }} 题 · 耗时 {{ studyFormatDuration(exerciseElapsedSec) }}
-              · 正确率 {{ exerciseTotal ? Math.round((exercisePassCount / exerciseTotal) * 100) : 0 }}%</div>
-
-            <div class="md-study-summary-grid">
-              <div class="md-study-summary-card ok">
-                <div class="sum-num">{{ exercisePassCount }}</div><div class="sum-lbl">答对</div>
-              </div>
-              <div class="md-study-summary-card no">
-                <div class="sum-num">{{ exerciseFailCount }}</div><div class="sum-lbl">答错</div>
-              </div>
-              <div class="md-study-summary-card star">
-                <div class="sum-num">{{ exerciseNewMastered }}</div><div class="sum-lbl">新掌握</div>
-              </div>
-              <div class="md-study-summary-card warn">
-                <div class="sum-num">{{ exerciseNewWrong }}</div><div class="sum-lbl">进错题</div>
-              </div>
-            </div>
-
-            <div class="md-study-summary-actions">
-              <button class="btn" @click="exerciseRestart">再来一轮</button>
-              <button class="btn ghost" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题</button>
-              <button class="btn ghost" @click="switchTab('home')"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>返回首页</button>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <section class="md-practice" v-show="activeTab === 'practice'">
-        <div class="empty-hint" v-if="!bank.length">暂无题目。请通过上方数据面板导入 JSON。</div>
-        <template v-else-if="practiceQueue.length">
-          <div class="progress-bar-container"><div class="progress-bar" :style="{ width: practiceProgress + '%' }"></div></div>
-          <div style="display:flex; justify-content:space-between; margin-bottom:14px; color:var(--text-muted); font-size:14px;">
-            <span>剩余卡片：{{ practiceQueue.length }} 张</span>
-            <span>已掌握：{{ practiceMastered }} / {{ totalQuestions }}</span>
-          </div>
-          <div class="card">
-            <div class="tag">{{ practiceCard.typeLabel }}</div>
-            <div class="question">{{ practiceCard.q }}</div>
-            <answer-view v-if="practiceShowAnswer" :item="practiceCard"></answer-view>
-            <div class="btn-group" v-if="!practiceShowAnswer">
-              <button class="btn wide" @click="practiceShowAnswer = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>想好了，看答案</button>
-            </div>
-            <div class="btn-group" v-else>
-              <button class="btn bad" @click="mark(false)">{{ failLabel }}</button>
-              <button class="btn good" @click="mark(true)">{{ passLabel }}</button>
-            </div>
-          </div>
-        </template>
-        <div v-else class="card done-box">
-          <h2>太棒了！全部通关！</h2>
-          <p>你已经完美攻克了所有知识点。</p>
-          <button class="btn wide" style="max-width:200px; margin:16px auto 0;" @click="resetPractice"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>再刷一遍</button>
-        </div>
-      </section>
-
-      <!-- ============ 阶段 4：模拟考试 ============ -->
-      <section v-show="activeTab === 'exam'" class="md-exam">
-        <div class="md-study-empty" v-if="!bank.length">
-          <div class="md-home-empty-title">还没有题库</div>
-          <div class="md-home-empty-sub">请点右上角的「数据管理」导入 JSON。</div>
-        </div>
-
-        <!-- ===== setup ===== -->
-        <template v-else-if="examMode === 'setup'">
-          <div class="md-study-setup">
-            <div class="md-study-setup-head" v-if="resumeExam">
-              <button class="btn ghost small" @click="examRestart">放弃上次</button>
-            </div>
-
-            <div class="md-study-resume" v-if="resumeExam">
-              <div class="resume-info"><span class="resume-icon"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg></span><span>上次考试做到第 {{ resumeExam.currentIndex + 1 }} / {{ resumeExam.queueGids.length }} 题</span></div>
-              <div>
-                <button class="btn small" @click="examResume">继续上次</button>
-              </div>
-            </div>
-
-            <div class="md-study-group">
-              <div class="md-study-group-title">考试范围</div>
-              <label class="md-study-radio" :class="{ active: examScope === 'all' }">
-                <input type="radio" value="all" v-model="examScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">全部题目</span>
-                <span class="md-study-badge">{{ bankGids.length }}</span>
-              </label>
-              <label class="md-study-radio" :class="{ active: examScope === 'custom' }">
-                <input type="radio" value="custom" v-model="examScope">
-                <span class="radio-dot"></span>
-                <span class="radio-label">自定义范围 / 题型</span>
-                <span class="md-study-badge" v-if="examScope === 'custom'">{{ examBadgeCount }}</span>
-              </label>
-              <div class="md-study-custom" v-if="examScope === 'custom'" @focus="examAutoFillCustomEnd">
-                <div class="custom-range">
-                  <label>开始：</label><input type="number" v-model.number="examCustomStart" min="1" :max="bank.length">
-                  <label>结束：</label><input type="number" v-model.number="examCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
+              <!-- 记忆进度：跨会话四档（新题/学习中/需复习/已掌握） -->
+              <div class="md-home-card">
+                <div class="md-home-card-head">
+                  <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>记忆进度</span>
+                  <span class="md-home-card-sub">{{ dashboard.total }} 题 · 已掌握 {{ dashboard.mastered }}</span>
                 </div>
-                <div class="custom-types">
-                  <div class="types-title">题型：</div>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.single_choice">单选</label>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.multi_choice">多选</label>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.true_false">判断</label>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.fill_blank">填空</label>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.special_fill_blank">特填</label>
-                  <label class="type-check"><input type="checkbox" v-model="examTypes.essay">简答</label>
+                <div class="md-fours">
+                  <div class="md-four-cell is-new"><div class="md-four-num">{{ dashboard.new }}</div><div class="md-four-lbl">新题</div></div>
+                  <div class="md-four-cell is-learning"><div class="md-four-num">{{ dashboard.learning }}</div><div class="md-four-lbl">学习中</div></div>
+                  <div class="md-four-cell is-review"><div class="md-four-num">{{ dashboard.needReview }}</div><div class="md-four-lbl">需复习</div></div>
+                  <div class="md-four-cell is-mastered"><div class="md-four-num">{{ dashboard.mastered }}</div><div class="md-four-lbl">已掌握</div></div>
+                </div>
+                <div class="md-home-today-meta" style="margin:12px 0 0;">
+                  今日到期 {{ todayOverdueCount }} 题 · 含新题 {{ dueBreak.fresh }}、学习中 {{ dueBreak.learning }}、需复习 {{ dueBreak.review }}
+                </div>
+                <!-- §7.2 第 3 条：「到期」是时间维度，四档是掌握维度，两者重叠 -->
+                <caliber-note icon="i-info">「今日到期」与上面四档是<strong>两个维度</strong>：一道题可以既「在学习中」又「今天到期」。到期数与四档相加会重复计数，两者不可相加。</caliber-note>
+                <caliber-note icon="i-info">这四档互斥、相加＝{{ dashboard.total }} 题。「需复习」是记忆进度的一个档，与错题本的「模糊」是两个不同的数，不可相加。</caliber-note>
+              </div>
+
+              <!-- 薄弱项：错题本四档（新错/巩固中/模糊/已攻克） -->
+              <div class="md-home-card" v-if="wrongCount">
+                <div class="md-home-card-head">
+                  <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>薄弱项</span>
+                  <span class="md-home-card-sub">错题本 {{ wrongCount }} 题 · 全局</span>
+                </div>
+                <div class="md-fours">
+                  <div class="md-four-cell is-wrong"><div class="md-four-num">{{ wrongStatusDist.new }}</div><div class="md-four-lbl">新错</div></div>
+                  <div class="md-four-cell is-solidify"><div class="md-four-num">{{ wrongStatusDist.learning }}</div><div class="md-four-lbl">巩固中</div></div>
+                  <div class="md-four-cell is-vague"><div class="md-four-num">{{ wrongStatusDist.weak }}</div><div class="md-four-lbl">模糊</div></div>
+                  <div class="md-four-cell is-cleared"><div class="md-four-num">{{ wrongStatusDist.cleared }}</div><div class="md-four-lbl">已攻克</div></div>
+                </div>
+                <caliber-note icon="i-info">错题本跨全部题库统计，与上方「{{ dashboard.total }} 题」不同口径，两个数不可相加。前三档是<strong>当前还在本子里</strong>的题；「已攻克」是历史累计——累计连对 3 次会自动移出，所以它不计进 {{ wrongCount }}。</caliber-note>
+                <div class="md-home-today-actions" style="margin-top:12px;">
+                  <button class="btn gray" @click="startWeakAttack"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>攻克薄弱项 · {{ wrongCount }} 题</button>
                 </div>
               </div>
-            </div>
+            </template>
+          </section>
 
-            <div class="md-study-group">
-              <div class="md-study-group-title">考试设置</div>
-              <div class="md-study-strategy">
-                <label><input type="radio" value="random" v-model="examStrategy">随机出题</label>
-                <label><input type="radio" value="sequential" v-model="examStrategy">顺序出题</label>
-              </div>
-              <div class="md-study-per">
-                <span class="per-label">题数：</span>
-                <label class="per-chip"><input type="radio" value="20" v-model="examPerSession"><span>20</span></label>
-                <label class="per-chip"><input type="radio" value="50" v-model="examPerSession"><span>50</span></label>
-                <label class="per-chip"><input type="radio" value="100" v-model="examPerSession"><span>100</span></label>
-                <label class="per-chip active" :class="{ active: examPerSession === 'all' }"><input type="radio" value="all" v-model="examPerSession"><span>全部</span></label>
-                <label class="per-chip"><input type="radio" value="custom" v-model="examPerSession"><span>自定义</span><input v-if="examPerSession === 'custom'" type="number" min="1" max="500" v-model.number="examPerSessionCustom" class="per-custom-input"></label>
+          <!-- ============ 练习（8 入口收敛后的逐题推进页；差异只是判分方式与是否写长期进度） ============ -->
+          <section v-show="activeTab === 'practice'" class="md-practice" :aria-label="'练习'">
+            <div class="md-home-empty" v-if="!bank.length">
+              <div class="md-home-empty-title">还没有题库</div>
+              <div class="md-home-empty-sub">去「题库」页导入 JSON 后即可开始。</div>
+              <div class="md-home-today-actions" style="justify-content:center; margin-top:16px;">
+                <button class="btn" @click="switchTab('bank')"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>导入题库</button>
               </div>
             </div>
 
-            <div class="md-study-summary-line">本次考试 <b>{{ examBadgeCount }}</b> 题</div>
-            <button class="md-study-start-btn" @click="examStart" :disabled="!examBadgeCount"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>开始考试</button>
-          </div>
-        </template>
-
-        <!-- ===== running（答题卡模式，不判分可回看） ===== -->
-        <template v-else-if="examMode === 'running'">
-          <div class="md-study-topbar">
-            <button class="md-study-exit-btn" @click="examExit" title="退出本次考试">← 退出</button>
-            <div class="md-study-progress-bar">
-              <div class="progress-fill" :style="{ width: examProgressPct + '%' }"></div>
-            </div>
-            <div class="md-study-top-info">
-              <span class="md-study-count">{{ examIndexLabel }}</span>
-              <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(examElapsedSec) }}</span>
-            </div>
-          </div>
-
-          <div class="md-exam-main">
-            <!-- 移动端答题卡切换按钮 -->
-            <button class="md-exam-sheet-toggle" @click="examSheetOpen = !examSheetOpen">
-              答题卡 <span class="ans-count">{{ examAnsweredCount }}/{{ examTotal }}</span>
-              <span class="arrow" :class="{ up: examSheetOpen }">▾</span>
-            </button>
-
-            <!-- 左侧：答题卡（桌面端） / 折叠面板（移动端） -->
-            <div class="md-exam-sheet" :class="{ open: examSheetOpen }">
-              <div class="md-exam-sheet-title">答题卡（{{ examAnsweredCount }}/{{ examTotal }}）</div>
-              <div class="md-exam-sheet-grid">
-                <button v-for="(gid, idx) in examQueueGids" :key="gid"
-                        class="md-exam-sheet-num"
-                        :class="{
-                          current: examIndex === idx,
-                          answered: examAnswers[gid] && examAnswers[gid].answered
-                        }"
-                        @click="examJump(idx)">
-                  {{ idx + 1 }}
-                </button>
+            <template v-else>
+              <div class="md-modebar">
+                <div class="md-seg" role="group" aria-label="练习模式">
+                  <button v-for="m in practiceModes" :key="m.key"
+                          :class="{ active: practiceMode === m.key }"
+                          @click="setPracticeMode(m.key)"
+                          :aria-pressed="practiceMode === m.key ? 'true' : 'false'">
+                    <svg class="icon" aria-hidden="true"><use :href="'#i-' + m.icon"/></svg>{{ m.label }}
+                  </button>
+                </div>
+                <!-- 每个模式一句话说清判分口径 —— 用户回答的是「这轮我要做什么」 -->
+                <caliber-note icon="i-info">{{ practiceModeHint }}</caliber-note>
               </div>
-              <div class="md-exam-sheet-legend">
-                <span><i class="dot answered"></i>已答</span>
-                <span><i class="dot current"></i>当前</span>
-                <span><i class="dot"></i>未答</span>
-              </div>
-            </div>
 
-            <!-- 中间题目卡 -->
-            <div class="md-exam-question">
-              <div class="md-study-card md-study-card-front" v-if="examCurrentItem">
+              <!-- ===== 背诵（原「学习」：用户自评、写长期进度、有恢复点） ===== -->
+              <div v-show="practiceMode === 'recite'" class="md-study">
+                <template v-if="studyMode === 'setup'">
+                  <div class="md-study-setup">
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">学习范围</div>
+                      <label class="md-study-radio" :class="{ active: studyScope === 'today' }">
+                        <input type="radio" value="today" v-model="studyScope"><span class="radio-dot"></span>
+                        <span class="radio-label">今日复习</span><span class="md-study-badge">{{ studyScopeCounts.today }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: studyScope === 'unmastered' }">
+                        <input type="radio" value="unmastered" v-model="studyScope"><span class="radio-dot"></span>
+                        <span class="radio-label">未掌握题目</span><span class="md-study-badge">{{ studyScopeCounts.unmastered }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: studyScope === 'all' }">
+                        <input type="radio" value="all" v-model="studyScope"><span class="radio-dot"></span>
+                        <span class="radio-label">全部题目</span><span class="md-study-badge">{{ studyScopeCounts.all }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: studyScope === 'wrongbook' }">
+                        <input type="radio" value="wrongbook" v-model="studyScope"><span class="radio-dot"></span>
+                        <span class="radio-label">错题本</span><span class="md-study-badge">{{ studyScopeCounts.wrongbook }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: studyScope === 'custom' }">
+                        <input type="radio" value="custom" v-model="studyScope"><span class="radio-dot"></span>
+                        <span class="radio-label">自定义范围</span><span class="md-study-badge" v-if="studyScope === 'custom'">{{ studyCustomCount }}</span>
+                      </label>
+                      <div class="md-study-custom" v-if="studyScope === 'custom'" @focus="studyAutoFillCustomEnd">
+                        <div class="custom-range">
+                          <label>开始：</label><input type="number" v-model.number="studyCustomStart" min="1" :max="bank.length">
+                          <label>结束：</label><input type="number" v-model.number="studyCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
+                        </div>
+                        <div class="custom-types">
+                          <div class="types-title">题型筛选：</div>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.single_choice">单选</label>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.multi_choice">多选</label>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.true_false">判断</label>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.fill_blank">填空</label>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.special_fill_blank">特填</label>
+                          <label class="type-check"><input type="checkbox" v-model="studyTypes.essay">简答</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">队列生成</div>
+                      <div class="md-study-strategy">
+                        <label><input type="radio" value="due" v-model="studyStrategy">到期优先</label>
+                        <label><input type="radio" value="sequential" v-model="studyStrategy">顺序学习</label>
+                        <label><input type="radio" value="random" v-model="studyStrategy">随机洗牌</label>
+                      </div>
+                      <div class="md-study-per">
+                        <span class="per-label">每次：</span>
+                        <label class="per-chip"><input type="radio" value="10" v-model="studyPerSession"><span>10</span></label>
+                        <label class="per-chip"><input type="radio" value="20" v-model="studyPerSession"><span>20</span></label>
+                        <label class="per-chip"><input type="radio" value="30" v-model="studyPerSession"><span>30</span></label>
+                        <label class="per-chip"><input type="radio" value="50" v-model="studyPerSession"><span>50</span></label>
+                        <label class="per-chip"><input type="radio" value="all" v-model="studyPerSession"><span>全部</span></label>
+                        <label class="per-chip"><input type="radio" value="custom" v-model="studyPerSession"><span>自定义</span><input v-if="studyPerSession === 'custom'" type="number" min="1" max="500" v-model.number="studyPerSessionCustom" class="per-custom-input"></label>
+                      </div>
+                    </div>
+                    <div class="md-study-summary-line">将学习 <b>{{ studyAvailableCount }}</b> 题</div>
+                    <button class="md-study-start-btn" @click="studyStart" :disabled="!studyAvailableCount"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始背诵</button>
+                  </div>
+                </template>
+
+                <template v-else-if="studyMode === 'running'">
+                  <div class="md-study-topbar">
+                    <button class="md-study-exit-btn" @click="studyExit" title="暂停（进度自动保存）" aria-label="暂停">
+                      <svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span class="md-hide-narrow">暂停</span>
+                    </button>
+                    <div class="md-study-progress-bar"><div class="progress-fill" :style="{ width: studyProgressPct + '%' }"></div></div>
+                    <div class="md-study-top-info">
+                      <span class="md-study-count">{{ studyCurrentProgress }}</span>
+                      <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(studyElapsedSec) }}</span>
+                    </div>
+                  </div>
+                  <div class="md-study-stage"
+                       @touchstart.passive="studyOnSwipeStart" @touchmove="studyOnSwipeMove" @touchend="studyOnSwipeEnd"
+                       @mousedown="studyOnSwipeStart" @mousemove="studyOnSwipeMove" @mouseup="studyOnSwipeEnd" @mouseleave="studyOnSwipeEnd">
+                    <div class="md-study-card md-study-card-back" v-if="studyNextItem">
+                      <div class="card-inner"><div class="tag">{{ studyNextItem.typeLabel }}</div><div class="question">{{ studyNextItem.question }}</div></div>
+                    </div>
+                    <div class="md-study-card md-study-card-front"
+                         v-if="studyCurrentItem"
+                         :style="{ transform: 'translateX(' + studySwipeX + 'px) rotate(' + (studySwipeX / 30) + 'deg)', transition: studySwipeActive ? 'none' : 'transform .25s var(--ease-out)' }">
+                      <div class="card-inner">
+                        <div class="md-study-swipe-hint swipe-right" v-if="studyShowAnswer && studySwipeX > 20"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了</div>
+                        <div class="md-study-swipe-hint swipe-left" v-if="studyShowAnswer && studySwipeX < -20"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还不会</div>
+                        <div class="md-study-card-head">
+                          <span class="tag">{{ studyCurrentItem.typeLabel }}</span>
+                          <span class="md-study-prev">{{ studyPrevHint }}</span>
+                        </div>
+                        <div class="question">{{ studyCurrentItem.q }}</div>
+                        <div class="md-study-answer-area">
+                          <div v-if="!studyShowAnswer" class="md-study-answer-hidden">
+                            <button class="md-study-reveal-btn" @click="studyShowAnswer = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>想好了，看答案</button>
+                            <div class="md-study-hint-mobile">看完答案：右滑记住 / 左滑还不会</div>
+                          </div>
+                          <answer-view v-else :item="studyCurrentItem"></answer-view>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="md-study-footer is-duo">
+                    <button class="md-study-fail-btn" :class="{ 'swipe-over': studySwipeX < -120 }" @click="studyShowAnswer && studyMark(false)">
+                      <svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还不会
+                    </button>
+                    <button class="md-study-pass-btn" :class="{ 'swipe-over': studySwipeX > 120 }" @click="studyShowAnswer && studyMark(true)">
+                      <svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了
+                    </button>
+                  </div>
+                </template>
+
+                <template v-else-if="studyMode === 'summary'">
+                  <div class="md-study-summary">
+                    <div class="md-study-summary-emoji"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg></div>
+                    <h2 class="md-study-summary-title">本次背诵完成</h2>
+                    <div class="md-study-summary-sub">共 {{ studyTotal }} 题 · 耗时 {{ studyFormatDuration(studyElapsedSec) }}</div>
+                    <triplet :cells="studyTriplet"></triplet>
+                    <div class="md-study-summary-actions">
+                      <button class="btn" @click="studyRestart">再来一轮</button>
+                      <button class="btn gray" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题</button>
+                      <button class="btn gray" @click="switchTab('today')"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg>返回今日</button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- ===== 答题（原「练习」：客观题系统判分、主观题自评） ===== -->
+              <div v-show="practiceMode === 'answer'" class="md-exercise">
+                <template v-if="exerciseMode === 'setup'">
+                  <div class="md-study-setup">
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">练习范围</div>
+                      <label class="md-study-radio" :class="{ active: exerciseScope === 'all' }">
+                        <input type="radio" value="all" v-model="exerciseScope"><span class="radio-dot"></span>
+                        <span class="radio-label">全部题目</span><span class="md-study-badge">{{ bankGids.length }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: exerciseScope === 'unmastered' }">
+                        <input type="radio" value="unmastered" v-model="exerciseScope"><span class="radio-dot"></span>
+                        <span class="radio-label">未掌握</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: exerciseScope === 'wrongbook' }">
+                        <input type="radio" value="wrongbook" v-model="exerciseScope"><span class="radio-dot"></span>
+                        <span class="radio-label">错题本</span><span class="md-study-badge">{{ exerciseWrongbookCount }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: exerciseScope === 'custom' }">
+                        <input type="radio" value="custom" v-model="exerciseScope"><span class="radio-dot"></span>
+                        <span class="radio-label">自定义范围</span><span class="md-study-badge" v-if="exerciseScope === 'custom'">{{ exerciseBadgeCount }}</span>
+                      </label>
+                      <div class="md-study-custom" v-if="exerciseScope === 'custom'" @focus="exerciseAutoFillCustomEnd">
+                        <div class="custom-range">
+                          <label>开始：</label><input type="number" v-model.number="exerciseCustomStart" min="1" :max="bank.length">
+                          <label>结束：</label><input type="number" v-model.number="exerciseCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
+                        </div>
+                        <div class="custom-types">
+                          <div class="types-title">题型：</div>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.single_choice">单选</label>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.multi_choice">多选</label>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.true_false">判断</label>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.fill_blank">填空</label>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.special_fill_blank">特填</label>
+                          <label class="type-check"><input type="checkbox" v-model="exerciseTypes.essay">简答</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">出题方式</div>
+                      <div class="md-study-strategy">
+                        <label><input type="radio" value="random" v-model="exerciseStrategy">随机洗牌</label>
+                        <label><input type="radio" value="sequential" v-model="exerciseStrategy">顺序出题</label>
+                      </div>
+                      <div class="md-study-per">
+                        <span class="per-label">数量：</span>
+                        <label class="per-chip"><input type="radio" value="10" v-model="exercisePerSession"><span>10</span></label>
+                        <label class="per-chip"><input type="radio" value="20" v-model="exercisePerSession"><span>20</span></label>
+                        <label class="per-chip"><input type="radio" value="30" v-model="exercisePerSession"><span>30</span></label>
+                        <label class="per-chip"><input type="radio" value="50" v-model="exercisePerSession"><span>50</span></label>
+                        <label class="per-chip"><input type="radio" value="all" v-model="exercisePerSession"><span>全部</span></label>
+                        <label class="per-chip"><input type="radio" value="custom" v-model="exercisePerSession"><span>自定义</span><input v-if="exercisePerSession === 'custom'" type="number" min="1" max="500" v-model.number="exercisePerSessionCustom" class="per-custom-input"></label>
+                      </div>
+                    </div>
+                    <div class="md-study-summary-line">将练习 <b>{{ exerciseBadgeCount }}</b> 题</div>
+                    <button class="md-study-start-btn" @click="exerciseStart" :disabled="!exerciseBadgeCount"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始答题</button>
+                  </div>
+                </template>
+
+                <template v-else-if="exerciseMode === 'running' && exerciseCurrentItem">
+                  <div class="md-study-topbar">
+                    <button class="md-study-exit-btn" @click="exerciseExit" title="暂停（进度自动保存）" aria-label="暂停">
+                      <svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span class="md-hide-narrow">暂停</span>
+                    </button>
+                    <div class="md-study-progress-bar"><div class="progress-fill" :style="{ width: exerciseProgressPct + '%' }"></div></div>
+                    <div class="md-study-top-info">
+                      <span class="md-study-count">{{ exerciseCurrentProgress }}</span>
+                      <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(exerciseElapsedSec) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 双栏（768+）：题面栏固定 / 作答栏自适应（§5.3） -->
+                  <div class="md-answer-cols">
+                    <div class="md-pane-question">
+                      <div class="md-study-card md-study-card-front">
+                        <div class="card-inner">
+                          <div class="md-study-card-head">
+                            <span class="tag">{{ exerciseCurrentItem.typeLabel }}</span>
+                            <span class="md-study-prev">{{ exercisePrevHint }}</span>
+                          </div>
+                          <div class="question"><question-text :item="exerciseCurrentItem"></question-text></div>
+                          <caliber-note v-if="exerciseCurrentItem.rawType === 'multi_choice'" icon="i-info">多选题 · 漏选、多选、错选均算整题错误，无部分给分。</caliber-note>
+                        </div>
+                      </div>
+                      <!-- 本题历史：移动端放不下，宽屏才有价值（§5.4） -->
+                      <question-history class="md-pane-history" :item="exerciseCurrentItem"></question-history>
+                    </div>
+
+                    <div class="md-pane-answer">
+                      <!-- 题型注册表驱动：未注册标识走 DefaultRenderer，不崩溃（§4.2）。
+                           选项上色与判定文字由 exerciseOptionState/Flag 提供 —— 判断/单选/多选同一套（§4.4） -->
+                      <q-renderer :item="exerciseCurrentItem"
+                                  :disabled="exerciseAnswerSubmitted"
+                                  :state-of="exerciseOptionState"
+                                  :flags="exerciseOptionFlag"
+                                  v-model:choice="exerciseChoice"
+                                  v-model:multi="exerciseMultiSel"
+                                  v-model:blanks="exerciseBlanks"
+                                  v-model:essay="exerciseInput"></q-renderer>
+
+                      <!-- 判分结果：判断/单选/多选共用同一组件（§4.3），此处不得出现第二套 -->
+                      <judge-result v-if="exerciseAnswerSubmitted && exerciseFeedback" :result="exerciseFeedback"></judge-result>
+
+                      <!-- 参考答案：凡带选项的题，选项文本与答案同屏可见（§4.2） -->
+                      <answer-view v-if="exerciseAnswerSubmitted" :item="exerciseCurrentItem"></answer-view>
+
+                      <!-- 主观题自评（必须先看到参考答案，否则用户无从判断） -->
+                      <div class="md-self-judge" v-if="exerciseAnswerSubmitted && !exerciseFeedback && !isObjective(exerciseCurrentItem.rawType)">
+                        <span class="md-self-label">对照参考答案自评：</span>
+                        <button class="md-self-btn ok" :class="{ 'is-picked': exerciseSelfResult === true }" @click="exerciseSelfJudge(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对</button>
+                        <button class="md-self-btn no" :class="{ 'is-picked': exerciseSelfResult === false }" @click="exerciseSelfJudge(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="md-study-footer">
+                    <button v-if="!exerciseAnswerSubmitted" class="md-study-pass-btn" @click="exerciseSubmit" :disabled="!exerciseCanSubmit">
+                      <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>提交答案
+                    </button>
+                    <button v-else class="md-study-pass-btn" @click="exerciseNext">
+                      {{ exerciseIndex + 1 < exerciseTotal ? '下一题' : '查看结果' }}
+                    </button>
+                  </div>
+                </template>
+
+                <template v-else-if="exerciseMode === 'summary'">
+                  <div class="md-study-summary">
+                    <div class="md-study-summary-emoji"><svg class="icon" aria-hidden="true"><use :href="exerciseSummaryIcon"/></svg></div>
+                    <h2 class="md-study-summary-title">本轮完成</h2>
+                    <div class="md-study-summary-sub">共 {{ exerciseTotal }} 题 · 耗时 {{ studyFormatDuration(exerciseElapsedSec) }}</div>
+                    <triplet :cells="exerciseTriplet"></triplet>
+                    <caliber-note icon="i-info">正确率分母 = 已判分题数（不含待自评与未作答）；多选无部分给分。</caliber-note>
+                    <div class="md-study-summary-actions">
+                      <button class="btn" @click="exerciseRestart">再来一轮</button>
+                      <button class="btn gray" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题</button>
+                      <button class="btn gray" @click="switchTab('today')"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg>返回今日</button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- ===== 按题型自测（原「分类考试」） ===== -->
+              <div v-show="practiceMode === 'bytype'" class="md-category">
+                <div class="md-study-setup" v-if="catStage === 'setup'">
+                  <div class="md-study-group">
+                    <div class="md-study-group-title">选择题型（可多选/全选），随机出题，实时判分</div>
+                    <div class="type-select" v-if="catTypes.length">
+                      <button class="type-chip" :class="{ on: catSelected.includes(t.rawType) }" v-for="t in catTypes" :key="t.rawType" @click="toggleCatType(t.rawType)">
+                        {{ t.label }}<span class="cnt">{{ t.count }}</span>
+                      </button>
+                    </div>
+                    <div class="empty-hint" v-else>题库为空，请先导入数据。</div>
+                    <div class="select-row" v-if="catTypes.length">
+                      <button class="btn-text small" @click="selectAllTypes">{{ catAllSelected ? '取消全选' : '全选' }}</button>
+                      <button class="btn" @click="startCat"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始自测</button>
+                    </div>
+                    <div class="err" v-if="catError">{{ catError }}</div>
+                  </div>
+                </div>
+
+                <template v-else-if="catStage === 'test' && catCurrent">
+                  <div class="md-study-topbar">
+                    <button class="md-study-exit-btn" @click="catRestart" aria-label="退出自测"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="md-hide-narrow">退出</span></button>
+                    <div class="md-study-progress-bar"><div class="progress-fill" :style="{ width: catProgressPct + '%' }"></div></div>
+                    <div class="md-study-top-info">
+                      <span class="md-study-count">{{ catIndex + 1 }}/{{ catStats.total }}</span>
+                      <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ catElapsedLive }}</span>
+                    </div>
+                  </div>
+                  <div class="md-answer-cols">
+                    <div class="md-pane-question">
+                      <div class="md-study-card md-study-card-front">
+                        <div class="card-inner">
+                          <div class="md-study-card-head"><span class="tag">{{ catCurrent.typeLabel }}</span></div>
+                          <div class="question"><question-text :item="catCurrent"></question-text></div>
+                        </div>
+                      </div>
+                      <question-history class="md-pane-history" :item="catCurrent"></question-history>
+                    </div>
+                    <div class="md-pane-answer">
+                      <q-renderer :item="catCurrent" :disabled="catRevealed"
+                                  :state-of="catOptionState" :flags="catOptionFlag"
+                                  v-model:choice="catChoice" v-model:multi="catMultiSel"
+                                  v-model:blanks="catBlanks" v-model:essay="catInput"></q-renderer>
+                      <judge-result v-if="catRevealed && catFeedback" :result="catFeedback"></judge-result>
+                      <answer-view v-if="catRevealed" :item="catCurrent"></answer-view>
+                      <div class="md-self-judge" v-if="catRevealed && !catFeedback && !isObjective(catCurrent.rawType)">
+                        <span class="md-self-label">对照参考答案自评：</span>
+                        <button class="md-self-btn ok" @click="catSelfJudge(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对</button>
+                        <button class="md-self-btn no" @click="catSelfJudge(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="md-study-footer">
+                    <button class="md-study-fail-btn" v-if="hasPrevCat" @click="catPrev"><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg>上一题</button>
+                    <button class="md-study-pass-btn" v-if="!catRevealed" @click="catSubmit">提交答案</button>
+                    <button class="md-study-pass-btn" v-else @click="catNext">{{ catNextLabel }}</button>
+                  </div>
+                </template>
+
+                <div class="md-study-summary" v-else-if="catStage === 'done'">
+                  <div class="md-study-summary-emoji"><svg class="icon" aria-hidden="true"><use href="#i-flag2"/></svg></div>
+                  <h2 class="md-study-summary-title">自测结束</h2>
+                  <triplet :cells="catTriplet"></triplet>
+                  <caliber-note icon="i-info">{{ catStats.wrong }} 道答错的题已进错题本；答对的题已更新记忆进度。</caliber-note>
+                  <div class="md-study-summary-actions">
+                    <button class="btn gray" @click="catRestart">重新选题</button>
+                    <button class="btn" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题本</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ===== 模拟考试（交卷统一判分是唯一无第二例的机制） ===== -->
+              <div v-show="practiceMode === 'mock'" class="md-exam">
+                <template v-if="examMode === 'setup'">
+                  <div class="md-study-setup">
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">考试范围</div>
+                      <label class="md-study-radio" :class="{ active: examScope === 'all' }">
+                        <input type="radio" value="all" v-model="examScope"><span class="radio-dot"></span>
+                        <span class="radio-label">全部题目</span><span class="md-study-badge">{{ bankGids.length }}</span>
+                      </label>
+                      <label class="md-study-radio" :class="{ active: examScope === 'custom' }">
+                        <input type="radio" value="custom" v-model="examScope"><span class="radio-dot"></span>
+                        <span class="radio-label">自定义范围 / 题型</span><span class="md-study-badge" v-if="examScope === 'custom'">{{ examBadgeCount }}</span>
+                      </label>
+                      <div class="md-study-custom" v-if="examScope === 'custom'" @focus="examAutoFillCustomEnd">
+                        <div class="custom-range">
+                          <label>开始：</label><input type="number" v-model.number="examCustomStart" min="1" :max="bank.length">
+                          <label>结束：</label><input type="number" v-model.number="examCustomEnd" min="1" :max="bank.length" :placeholder="'总数 '+bank.length">
+                        </div>
+                        <div class="custom-types">
+                          <div class="types-title">题型：</div>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.single_choice">单选</label>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.multi_choice">多选</label>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.true_false">判断</label>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.fill_blank">填空</label>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.special_fill_blank">特填</label>
+                          <label class="type-check"><input type="checkbox" v-model="examTypes.essay">简答</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="md-study-group">
+                      <div class="md-study-group-title">考试设置</div>
+                      <div class="md-study-strategy">
+                        <label><input type="radio" value="random" v-model="examStrategy">随机出题</label>
+                        <label><input type="radio" value="sequential" v-model="examStrategy">顺序出题</label>
+                      </div>
+                      <div class="md-study-per">
+                        <span class="per-label">题数：</span>
+                        <label class="per-chip"><input type="radio" value="20" v-model="examPerSession"><span>20</span></label>
+                        <label class="per-chip"><input type="radio" value="50" v-model="examPerSession"><span>50</span></label>
+                        <label class="per-chip"><input type="radio" value="100" v-model="examPerSession"><span>100</span></label>
+                        <label class="per-chip"><input type="radio" value="all" v-model="examPerSession"><span>全部</span></label>
+                        <label class="per-chip"><input type="radio" value="custom" v-model="examPerSession"><span>自定义</span><input v-if="examPerSession === 'custom'" type="number" min="1" max="500" v-model.number="examPerSessionCustom" class="per-custom-input"></label>
+                      </div>
+                    </div>
+                    <div class="md-study-summary-line">本次考试 <b>{{ examBadgeCount }}</b> 题</div>
+                    <button class="md-study-start-btn" @click="examStart" :disabled="!examBadgeCount"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>开始考试</button>
+                  </div>
+                </template>
+
+                <template v-else-if="examMode === 'running'">
+                  <div class="md-study-topbar">
+                    <button class="md-study-exit-btn" @click="examExit" aria-label="暂停考试"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span class="md-hide-narrow">暂停</span></button>
+                    <div class="md-study-progress-bar"><div class="progress-fill" :style="{ width: examProgressPct + '%' }"></div></div>
+                    <div class="md-study-top-info">
+                      <span class="md-study-count">{{ examIndexLabel }}</span>
+                      <span class="md-study-timer"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>{{ studyFormatDuration(examElapsedSec) }}</span>
+                    </div>
+                  </div>
+
+                  <div class="md-exam-main">
+                    <button class="md-exam-sheet-toggle" @click="examSheetOpen = !examSheetOpen" :aria-expanded="examSheetOpen ? 'true' : 'false'">
+                      答题卡 <span class="ans-count">{{ examAnsweredCount }}/{{ examTotal }}</span>
+                      <span class="arrow" :class="{ up: examSheetOpen }"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+                    </button>
+                    <div class="md-exam-sheet" :class="{ open: examSheetOpen }">
+                      <div class="md-exam-sheet-title">答题卡（{{ examAnsweredCount }}/{{ examTotal }}）</div>
+                      <div class="md-exam-sheet-grid">
+                        <button v-for="(gid, idx) in examQueueGids" :key="gid" class="md-exam-sheet-num"
+                                :class="{ current: examIndex === idx, answered: examAnswers[gid] && examAnswers[gid].answered }"
+                                @click="examJump(idx)" :aria-label="'第 ' + (idx + 1) + ' 题'">
+                          {{ idx + 1 }}
+                        </button>
+                      </div>
+                      <div class="md-exam-sheet-legend">
+                        <span><i class="dot answered"></i>已答</span><span><i class="dot current"></i>当前</span><span><i class="dot"></i>未答</span>
+                      </div>
+                    </div>
+                    <div class="md-exam-question" v-if="examCurrentItem">
+                      <div class="md-study-card md-study-card-front">
+                        <div class="card-inner">
+                          <div class="md-study-card-head">
+                            <span class="tag">{{ examCurrentItem.typeLabel }}</span>
+                            <span class="md-study-prev">第 {{ examIndex + 1 }} 题 · 共 {{ examTotal }} 题</span>
+                          </div>
+                          <div class="question"><question-text :item="examCurrentItem"></question-text></div>
+                          <q-renderer :item="examCurrentItem" :disabled="false"
+                                      v-model:choice="examChoiceProxy" v-model:multi="examMultiSel"
+                                      v-model:blanks="examBlanks" v-model:essay="examInputProxy"></q-renderer>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="md-exam-footer">
+                    <button class="btn gray" @click="examPrev" :disabled="examIndex === 0"><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg>上一题</button>
+                    <button class="btn gray" @click="examNext" :disabled="examIndex >= examTotal - 1">下一题<svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+                    <button class="md-exam-submit-btn" @click="askSubmitExam">交卷 ({{ examAnsweredCount }}/{{ examTotal }})</button>
+                  </div>
+                </template>
+
+                <template v-else-if="examMode === 'summary'">
+                  <div class="md-exam-summary">
+                    <div class="md-exam-score-card">
+                      <div class="score-circle">
+                        <svg viewBox="0 0 100 100" aria-hidden="true">
+                          <circle class="track" cx="50" cy="50" r="44" stroke-width="6" fill="none"/>
+                          <circle class="fill" cx="50" cy="50" r="44" stroke-width="6" fill="none" stroke-linecap="round"
+                                  transform="rotate(-90 50 50)" stroke-dasharray="276"
+                                  :style="{ strokeDashoffset: String(276 - 276 * examScorePct / 100) }"/>
+                        </svg>
+                        <div class="score-num">{{ examScorePct }}</div>
+                        <div class="score-label">正确率</div>
+                      </div>
+                      <div class="score-meta">
+                        <div class="meta-row"><span>答对</span><b>{{ examPassCount }}</b></div>
+                        <div class="meta-row no"><span>已判错</span><b>{{ examFailCount }}</b></div>
+                        <div class="meta-row pending" v-if="examPendingItems.length"><span>待自评</span><b>{{ examPendingItems.length }}</b></div>
+                        <div class="meta-row" v-if="examBlankItems.length"><span>未作答</span><b>{{ examBlankItems.length }}</b></div>
+                        <div class="meta-row"><span>总用时</span><b>{{ studyFormatDuration(examElapsedSec) }}</b></div>
+                      </div>
+                    </div>
+                    <!-- §7.2 第 1 条：正确率分母口径必须写出来 -->
+                    <caliber-note icon="i-info">正确率分母 = 已判分 {{ examGradedCount }} 题；待自评 {{ examPendingItems.length }} 题不计分、未作答 {{ examBlankItems.length }} 题不计分、不写进度、不进错题本。</caliber-note>
+
+                    <div class="md-exam-wrong-detail" v-if="examPendingItems.length">
+                      <div class="md-exam-wrong-title">待你评定 · {{ examPendingItems.length }} 题（未计入正确率）</div>
+                      <div class="md-exam-wrong-list">
+                        <div class="md-exam-wrong-item" v-for="entry in examPendingItems" :key="entry.gid">
+                          <div class="wrong-head"><span class="tag">{{ entry.item.typeLabel }}</span><span class="wrong-flag subjective">主观题</span></div>
+                          <div class="wrong-q">{{ entry.item.question }}</div>
+                          <div class="wrong-line"><span class="wrong-lbl">你的作答：</span><span class="wrong-user">{{ entry.displayAnswer || '—' }}</span></div>
+                          <answer-view :item="entry.item"></answer-view>
+                          <div class="md-self-judge">
+                            <span class="md-self-label">对照参考答案自评：</span>
+                            <button class="md-self-btn ok" @click="examSelfJudge(entry.gid, true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对</button>
+                            <button class="md-self-btn no" @click="examSelfJudge(entry.gid, false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="md-exam-wrong-detail" v-if="examWrongItems.length">
+                      <div class="md-exam-wrong-title">已判错 · {{ examWrongItems.length }} 题（全部已进错题本）</div>
+                      <div class="md-exam-wrong-list">
+                        <div class="md-exam-wrong-item" v-for="(entry, idx) in examWrongItems" :key="entry.gid || idx">
+                          <div class="wrong-head"><span class="wrong-idx">第 {{ idx + 1 }} 题</span><span class="tag">{{ entry.item.typeLabel }}</span></div>
+                          <div class="wrong-q">{{ entry.item.question }}</div>
+                          <div class="wrong-line"><span class="wrong-lbl">你的答案：</span><span class="wrong-user">{{ entry.displayAnswer || '—' }}</span></div>
+                          <answer-view :item="entry.item"></answer-view>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="md-exam-wrong-detail" v-if="examBlankItems.length">
+                      <div class="md-exam-wrong-title">未作答 · {{ examBlankItems.length }} 题（不计分 · 未记错题）</div>
+                      <div class="md-exam-wrong-list">
+                        <div class="md-exam-wrong-item" v-for="entry in examBlankItems" :key="entry.gid">
+                          <div class="wrong-head"><span class="tag">{{ entry.item.typeLabel }}</span></div>
+                          <div class="wrong-q">{{ entry.item.question }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="md-exam-perfect" v-if="!examWrongItems.length && !examPendingItems.length && !examBlankItems.length">
+                      <div class="perfect-emoji"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg></div>
+                      <div class="perfect-text">全对，且没有遗留待评定项</div>
+                    </div>
+
+                    <div class="md-exam-summary-actions">
+                      <button class="btn" @click="examRestart"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>再考一次</button>
+                      <button class="btn gray" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题清单</button>
+                      <button class="btn gray" @click="switchTab('today')"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg>返回今日</button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- ===== 浏览速览（原「摸底速览」：降级为不判分、不写进度、只读） ===== -->
+              <div v-show="practiceMode === 'browse'" class="md-preview">
+                <caliber-note icon="i-info">浏览模式：不判分、不写长期进度、没有恢复点。要练请切「背诵」或「答题」。</caliber-note>
+                <div class="exam-item" v-for="(item, index) in bank" :key="item.gid || index">
+                  <div class="wrong-head">
+                    <span class="exam-tag">{{ item.typeLabel }}</span>
+                    <span class="exam-meta">{{ index + 1 }} / {{ bank.length }} · {{ item.paper }}</span>
+                  </div>
+                  <div class="exam-q">{{ item.question }}</div>
+                  <div class="btn-row">
+                    <button class="btn-text small" @click="togglePreview(index)">
+                      <svg class="icon" aria-hidden="true"><use :href="previewRevealed[index] ? '#i-eye-slash' : '#i-preview'"/></svg>{{ previewRevealed[index] ? '隐藏答案' : '查看答案' }}
+                    </button>
+                    <button class="btn-text small" @click="addPreviewToWrongbook(item)"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>记入错题本</button>
+                  </div>
+                  <answer-view v-if="previewRevealed[index]" :item="item"></answer-view>
+                </div>
+              </div>
+
+              <!-- ===== 闯关队列（原「记忆闯关」；features.practice.enabled=false 时整个模式隐藏） ===== -->
+              <div v-show="practiceMode === 'queue'" class="md-queue">
+                <template v-if="practiceQueue.length">
+                  <div class="progress-bar-container"><div class="progress-bar" :style="{ width: practiceProgress + '%' }"></div></div>
+                  <div class="md-home-card-head">
+                    <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>闯关队列</span>
+                    <!-- §7.3：会话内的「一次即掌握」在界面上叫「本轮攻克」，
+                         明确它只管本轮队列顺序，不产生跨会话含义 -->
+                    <status-chip kind="round" set="session"></status-chip>
+                  </div>
+                  <div class="md-study-top-info" style="justify-content:space-between;">
+                    <span>剩余卡片：{{ practiceQueue.length }} 张</span>
+                    <span>已掌握：{{ practiceMastered }} / {{ totalQuestions }}</span>
+                  </div>
+                  <div class="card">
+                    <div class="tag">{{ practiceCard.typeLabel }}</div>
+                    <div class="question">{{ practiceCard.q }}</div>
+                    <answer-view v-if="practiceShowAnswer" :item="practiceCard"></answer-view>
+                    <div class="btn-group" v-if="!practiceShowAnswer">
+                      <button class="btn wide" @click="practiceShowAnswer = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>想好了，看答案</button>
+                    </div>
+                    <div class="btn-group" v-else>
+                      <button class="btn gray" @click="mark(false)">{{ failLabel }}</button>
+                      <button class="btn" @click="mark(true)">{{ passLabel }}</button>
+                    </div>
+                  </div>
+                  <!-- §7.3：闯关的「一次即掌握」改称「本轮攻克」，明确不产生跨会话含义 -->
+                  <caliber-note icon="i-info">本轮攻克只影响本轮队列顺序，不等于跨会话「已掌握」；两个数不可相加。</caliber-note>
+                </template>
+                <div class="card done-box" v-else>
+                  <h2>本轮队列清空</h2>
+                  <p>队列内全部卡片都过了。</p>
+                  <button class="btn wide" style="max-width:200px; margin:16px auto 0;" @click="resetPractice"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>再刷一遍</button>
+                </div>
+              </div>
+            </template>
+          </section>
+
+          <!-- ============ 错题本（重练/重考降为页内两种发起方式） ============ -->
+          <section v-show="activeTab === 'wrongbook'" class="md-wrongbook" :aria-label="'错题本'">
+            <template v-if="wrongCount">
+              <div class="md-home-card">
+                <div class="md-home-card-head">
+                  <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>薄弱项</span>
+                  <span class="md-home-card-sub">{{ wrongCount }} 题 · 跨全部题库</span>
+                </div>
+                <div class="md-fours">
+                  <div class="md-four-cell is-wrong"><div class="md-four-num">{{ wrongStatusDist.new }}</div><div class="md-four-lbl">新错</div></div>
+                  <div class="md-four-cell is-solidify"><div class="md-four-num">{{ wrongStatusDist.learning }}</div><div class="md-four-lbl">巩固中</div></div>
+                  <div class="md-four-cell is-vague"><div class="md-four-num">{{ wrongStatusDist.weak }}</div><div class="md-four-lbl">模糊</div></div>
+                  <div class="md-four-cell is-cleared"><div class="md-four-num">{{ wrongStatusDist.cleared }}</div><div class="md-four-lbl">已攻克</div></div>
+                </div>
+                <!-- §7.4.1：离开规则收敛为一条，口径必须写在界面上 -->
+                <caliber-note icon="i-info">任何入口答对都计入连对，累计连对 3 次自动移出错题本；移出时会写明原因。手动删除同样会写明原因。</caliber-note>
+                <div class="select-row" style="margin-top:12px;">
+                  <button class="btn" @click="startWeakAttack"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>攻薄弱项</button>
+                  <button class="btn gray" @click="startWrongExam(wrongItems)"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>错题重考</button>
+                  <button class="btn-text small" @click="askClearWrongbook" style="margin-left:auto;"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>清空错题本</button>
+                </div>
+              </div>
+
+              <div class="md-study-group" v-if="wrongSourceTabs.length" style="padding:12px;">
+                <div class="wb-tabs">
+                  <button v-for="t in wrongSourceTabs" :key="t.key" :class="{ on: wrongTab === t.key }" @click="wrongTab = t.key">{{ t.label }} ({{ t.count }})</button>
+                  <button :class="{ on: wrongTab === 'all' }" @click="wrongTab = 'all'">全部 ({{ wrongCount }})</button>
+                </div>
+              </div>
+
+              <div class="md-study-card md-study-card-front" v-if="wrongPracticeQueue.length">
                 <div class="card-inner">
                   <div class="md-study-card-head">
-                    <span class="tag">{{ examCurrentItem.typeLabel }}</span>
-                    <span class="md-study-prev">第 {{ examIndex + 1 }} 题</span>
+                    <span class="tag">{{ wrongPracticeQueue[0].it.typeLabel }}</span>
+                    <span class="md-study-prev">错题重练 · 剩余 {{ wrongPracticeQueue.length }} 张</span>
                   </div>
-                  <div class="question">{{ examCurrentItem.question }}</div>
-
-                  <!-- 作答区（和练习完全相同的题型交互，但不判分、不禁用） -->
-                  <div class="md-exercise-answer">
-
-                    <template v-if="examCurrentItem.rawType === 'single_choice'">
-                      <div class="md-opt-list">
-                        <button v-for="(val, key) in examCurrentItem.options" :key="key"
-                                class="md-opt"
-                                :class="{ selected: examChoiceProxy === key }"
-                                @click="examOptionClick(key)">
-                          <span class="md-opt-key">{{ key }}</span>{{ val }}
-                        </button>
-                      </div>
-                    </template>
-
-                    <template v-else-if="examCurrentItem.rawType === 'multi_choice'">
-                      <div class="md-opt-list">
-                        <button v-for="(val, key) in examCurrentItem.options" :key="key"
-                                class="md-opt"
-                                :class="{ selected: examIsOptionOn(key) }"
-                                @click="examOptionClick(key)">
-                          <span class="md-opt-key">{{ key }}</span>{{ val }}
-                        </button>
-                      </div>
-                    </template>
-
-                    <template v-else-if="examCurrentItem.rawType === 'true_false'">
-                      <div class="md-tf">
-                        <button class="md-tf-btn"
-                                :class="{ selected: examChoiceProxy === 'true' }"
-                                @click="examOptionClick('true')"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>正确</button>
-                        <button class="md-tf-btn"
-                                :class="{ selected: examChoiceProxy === 'false' }"
-                                @click="examOptionClick('false')"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>错误</button>
-                      </div>
-                    </template>
-
-                    <template v-else-if="['fill_blank', 'special_fill_blank'].indexOf(examCurrentItem.rawType) >= 0">
-                      <div class="md-exercise-blank">
-                        <input type="text" v-model="examInputProxy"
-                               :placeholder="'请输入你的答案'"
-                               class="md-field">
-                      </div>
-                    </template>
-
-                    <template v-else-if="examCurrentItem.rawType === 'essay'">
-                      <textarea v-model="examInputProxy" rows="4"
-                                class="md-field tall" placeholder="请写出你的答案..."></textarea>
-                    </template>
+                  <div class="question"><question-text :item="wrongPracticeQueue[0].it"></question-text></div>
+                  <answer-view v-if="wrongPracticeShow" :item="wrongPracticeQueue[0].it"></answer-view>
+                  <div class="btn-group" v-if="!wrongPracticeShow">
+                    <button class="btn wide" @click="wrongPracticeShow = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>看答案</button>
+                  </div>
+                  <div class="btn-group" v-else>
+                    <button class="btn gray" @click="wrongMark(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>没记住</button>
+                    <button class="btn" @click="wrongMark(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了</button>
                   </div>
                 </div>
               </div>
+            </template>
+
+            <div class="md-home-empty" v-if="!wrongFiltered.length && !wrongPracticeQueue.length">
+              <div class="md-home-empty-title">没有错题</div>
+              <div class="md-home-empty-sub">答错的题会自动记到这里，累计连对 3 次自动移出。</div>
             </div>
-          </div>
 
-          <!-- 底部操作栏 -->
-          <div class="md-exam-footer">
-            <button class="btn ghost" @click="examPrev" :disabled="examIndex === 0">← 上一题</button>
-            <button class="btn ghost" @click="examNext" :disabled="examIndex >= examTotal - 1">下一题 →</button>
-            <button class="md-exam-submit-btn" @click="examSubmit()">交卷 ({{ examAnsweredCount }}/{{ examTotal }})</button>
-          </div>
-        </template>
-
-        <!-- ===== summary（客观题即时判分 + 主观题自评 + 未答题单列） ===== -->
-        <template v-else-if="examMode === 'summary'">
-          <div class="md-exam-summary">
-            <!-- 成绩卡片 -->
-            <div class="md-exam-score-card">
-              <div class="score-circle">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="44" stroke="#e4eaf2" stroke-width="6" fill="none"/>
-                  <circle cx="50" cy="50" r="44" stroke="var(--primary)" stroke-width="6" fill="none"
-                          stroke-linecap="round"
-                          transform="rotate(-90 50 50)"
-                          stroke-dasharray="276"
-                          :style="{ strokeDashoffset: String(276 - 276 * examScorePct / 100) }"/>
-                </svg>
-                <div class="score-num">{{ examScorePct }}</div>
-                <div class="score-label">正确率</div>
+            <div class="wb-item" v-for="e in wrongFiltered" :key="e.id">
+              <div class="wb-item-head">
+                <span class="src-tag">{{ sourceLabel(e.source) }}</span>
+                <!-- 错题本四档：新错/巩固中/模糊/已攻克（与记忆四档绝不同名，§7.3） -->
+                <status-chip :kind="e.status || 'new'" :set="e.status || 'new'"></status-chip>
+                <span class="wb-item-stats">
+                  <span class="wb-err-count" v-if="e.wrongCount > 1">出错 {{ e.wrongCount }} 次</span>
+                  <span class="wb-streak" v-if="e.correctStreak > 0">连对 {{ e.correctStreak }}</span>
+                </span>
               </div>
-              <div class="score-meta">
-                <div class="meta-row"><span>总题数</span><b>{{ examTotal }}</b></div>
-                <div class="meta-row ok"><span>答对</span><b>{{ examPassCount }}</b></div>
-                <div class="meta-row no"><span>答错</span><b>{{ examFailCount }}</b></div>
-                <div class="meta-row pending" v-if="examPendingItems.length"><span>主观题待自评</span><b>{{ examPendingItems.length }}</b></div>
-                <div class="meta-row" v-if="examBlankItems.length"><span>未作答</span><b>{{ examBlankItems.length }}</b></div>
-                <div class="meta-row"><span>耗时</span><b>{{ studyFormatDuration(examElapsedSec) }}</b></div>
+              <div class="wb-q" :class="{ 'is-open': wbOpen[e.id] }">{{ e.item.q }}</div>
+              <button class="wb-expand" v-if="!wbOpen[e.id]" @click="wbToggle(e.id)">展开全文</button>
+              <answer-view :item="e.item"></answer-view>
+              <div class="select-row" style="margin-top:10px;">
+                <button class="btn-text small" @click="wrongMarkMastered(e.id)"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>标记为已攻克</button>
+                <button class="btn-text small" @click="askRemoveWrong(e)"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>手动删除</button>
               </div>
             </div>
-            <div class="md-exam-score-note" v-if="examBlankItems.length">
-              正确率按已判分的 {{ examGradedCount }} 题计算；未作答的 {{ examBlankItems.length }} 题不计分、不写入错题本。
-            </div>
+          </section>
 
-            <!-- 主观题自评（答了但系统无法判分的题，答对/答错后才计入成绩） -->
-            <div class="md-exam-wrong-detail" v-if="examPendingItems.length">
-              <div class="md-exam-wrong-title">主观题自评（{{ examPendingItems.length }} 题）</div>
-              <div class="md-exam-wrong-list">
-                <div class="md-exam-wrong-item" v-for="entry in examPendingItems" :key="entry.gid">
-                  <div class="wrong-head">
-                    <span class="tag">{{ entry.item.typeLabel }}</span>
-                    <span class="wrong-flag subjective">主观题</span>
-                  </div>
-                  <div class="wrong-q">{{ entry.item.question }}</div>
-                  <div class="wrong-line">
-                    <span class="wrong-lbl">你的答案：</span>
-                    <span class="wrong-user">{{ entry.userAnswer.input || '—' }}</span>
-                  </div>
-                  <answer-view :item="entry.item"></answer-view>
-                  <div class="md-exercise-self-judge">
-                    <div class="md-exercise-self-label">对照参考答案自评：</div>
-                    <button class="md-exercise-self-btn ok" @click="examSelfJudge(entry.gid, true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>算我答对了</button>
-                    <button class="md-exercise-self-btn no" @click="examSelfJudge(entry.gid, false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>还是答错了</button>
-                  </div>
-                </div>
+          <!-- ============ 题库（数据接入 + 手动加题 + 导出备份 + 外观，一个二级页） ============ -->
+          <section v-show="activeTab === 'bank'" class="md-bank" :aria-label="'题库'">
+            <div class="md-home-card">
+              <div class="md-home-card-head">
+                <span class="md-home-card-title"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>当前题库</span>
+                <span class="src-badge" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
+              </div>
+              <div class="md-home-card-sub" v-if="currentBank.meta.title">{{ currentBank.meta.title }}</div>
+              <div class="src-meta" v-if="sourceMeta.detail">{{ sourceMeta.detail }}</div>
+              <div class="expose-row">
+                <span class="lbl">当前卷：</span>
+                <span class="paper-switch" v-if="hasMultiplePapers">
+                  <select v-model="currentPaperId" @change="switchPaper">
+                    <option v-for="p in papers" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
+                  </select>
+                </span>
+                <span v-else class="lbl">{{ papers.length ? papers[0].name : '（无数据）' }}</span>
+                <span class="lbl">共 {{ totalQuestions }} 题</span>
               </div>
             </div>
 
-            <!-- 错题详情列表 -->
-            <div class="md-exam-wrong-detail" v-if="examWrongItems.length">
-              <div class="md-exam-wrong-title">错题详情（{{ examWrongItems.length }} 题）</div>
-              <div class="md-exam-wrong-list">
-                <div class="md-exam-wrong-item" v-for="(entry, idx) in examWrongItems" :key="entry.gid || idx">
-                  <div class="wrong-head">
-                    <span class="wrong-idx">第 {{ idx + 1 }} 题</span>
-                    <span class="tag" style="margin-left:8px;">{{ entry.item.typeLabel }}</span>
-                    <span class="wrong-flag" :class="{ subjective: entry.subjective }">
-                      {{ entry.subjective ? '主观题' : '客观题' }}
-                    </span>
-                  </div>
-                  <div class="wrong-q">{{ entry.item.question }}</div>
-                  <div class="wrong-line">
-                    <span class="wrong-lbl">你的答案：</span>
-                    <span class="wrong-user">{{ entry.userAnswer.input || entry.userAnswer.choice || (entry.userAnswer.multiSel ? entry.userAnswer.multiSel.join(', ') : '—') || '—' }}</span>
-                  </div>
-                  <div class="wrong-line correct">
-                    <span class="wrong-lbl">正确答案：</span>
-                    <span class="wrong-std">{{ entry.item.a }}</span>
-                  </div>
-                </div>
+            <div class="md-study-group">
+              <div class="md-study-group-title">导入</div>
+              <div class="md-bank-desc">三种格式自动识别：exam-bank 标准、papers 数组、旧版分题型对象。</div>
+              <div class="src-actions">
+                <input type="text" v-model="remoteUrl" placeholder="输入远程 JSON 链接，例如 https://example.com/data.json" @keyup.enter="fetchUrl">
+                <button class="btn gray" @click="fetchUrl" :disabled="dataBusy"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>远程导入</button>
+                <button class="btn gray" @click="refresh" :disabled="!sourceMeta.url"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>刷新</button>
+              </div>
+              <div class="drop-zone" :class="{ active: dragActive }"
+                   @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
+                拖拽 JSON 文件到此处即可导入，或
+                <label style="cursor:pointer; color:var(--md-amber); font-weight:500;">点击选择文件
+                  <input type="file" accept=".json,application/json" style="display:none" @change="onFileChange">
+                </label>
+              </div>
+              <details>
+                <summary class="sub" style="cursor:pointer;"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>或粘贴 JSON 文本录入</summary>
+                <textarea class="paste-box" v-model="pasteText" placeholder='在此粘贴 {"view":"exam-bank", ...} JSON'></textarea>
+                <div class="src-actions"><button class="btn" @click="applyPaste"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>应用粘贴的 JSON</button></div>
+              </details>
+              <div class="err" v-if="dataError">{{ dataError }}</div>
+              <div class="select-row">
+                <button class="btn-text small" @click="clearAndReload"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>清空缓存并重载</button>
               </div>
             </div>
 
-            <!-- 未作答（不影响成绩，仅供回看） -->
-            <div class="md-exam-wrong-detail" v-if="examBlankItems.length">
-              <div class="md-exam-wrong-title">未作答（{{ examBlankItems.length }} 题）</div>
-              <div class="md-exam-wrong-list">
-                <div class="md-exam-wrong-item" v-for="entry in examBlankItems" :key="entry.gid">
-                  <div class="wrong-head">
-                    <span class="tag">{{ entry.item.typeLabel }}</span>
-                  </div>
-                  <div class="wrong-q">{{ entry.item.question }}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 全对且无遗留 -->
-            <div class="md-exam-perfect" v-if="!examWrongItems.length && !examPendingItems.length && !examBlankItems.length">
-              <div class="perfect-emoji"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg></div>
-              <div class="perfect-text">全对！太厉害了！</div>
-            </div>
-
-            <div class="md-exam-summary-actions">
-              <button class="btn" @click="examRestart"><svg class="icon" aria-hidden="true"><use href="#i-exam"/></svg>再考一次</button>
-              <button class="btn ghost" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题本</button>
-              <button class="btn ghost" @click="switchTab('home')"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>返回首页</button>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <section class="md-preview" v-show="activeTab === 'preview'">
-        <div class="empty-hint" v-if="!bank.length">暂无题目。请通过上方数据面板导入 JSON。</div>
-        <template v-else>
-          <div class="exam-item" v-for="(item, index) in bank" :key="index">
-            <span class="exam-tag">{{ item.typeLabel }}</span>
-            <span class="exam-meta">{{ item.paper }}</span>
-            <div class="exam-q">{{ index + 1 }}. {{ item.q }}</div>
-            <div class="btn-row">
-              <button class="btn small" @click="togglePreview(index)"><svg class="icon" aria-hidden="true"><use :href="previewRevealed[index] ? '#i-eye-slash' : '#i-preview'"/></svg>{{ previewRevealed[index] ? '隐藏答案' : '查看答案' }}</button>
-              <button class="btn small gray" @click="addPreviewToWrongbook(item)"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>加入错题本</button>
-            </div>
-            <answer-view v-if="previewRevealed[index]" :item="item"></answer-view>
-          </div>
-        </template>
-      </section>
-
-      <section class="md-category" v-show="activeTab === 'category'">
-        <div class="panel" v-if="catStage === 'setup'">
-          <p class="sub" style="margin:0 0 10px;">选择题型（可多选/全选），随机出题，实时判分。</p>
-          <div class="type-select" v-if="catTypes.length">
-            <button class="type-chip" :class="{ on: catSelected.includes(t.rawType) }" v-for="t in catTypes" :key="t.rawType" @click="toggleCatType(t.rawType)">
-              {{ t.label }}<span class="cnt">{{ t.count }}</span>
-            </button>
-          </div>
-          <div class="empty-hint" v-else>题库为空，请先导入数据。</div>
-          <div class="select-row" v-if="catTypes.length">
-            <button class="btn-text small" @click="selectAllTypes">{{ catAllSelected ? '取消全选' : '全选' }}</button>
-            <button class="btn" @click="startCat"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>开始考试</button>
-          </div>
-          <div class="err" v-if="catError">{{ catError }}</div>
-
-          <details style="margin-top:14px;">
-            <summary class="sub" style="cursor:pointer;"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>手动添加题目</summary>
-            <div style="margin-top:10px;">
+            <div class="md-study-group">
+              <div class="md-study-group-title">手动加题</div>
+              <caliber-note icon="i-warn">手动添加的题目只存在内存里，刷新即丢。要长期保留请「导出备份」，或把它写回题库 JSON。</caliber-note>
               <textarea class="md-field" v-model="customForm.question" placeholder="题干（填空用 ____ 表示空位）"></textarea>
               <div class="select-row">
                 <select class="cat-type-select" v-model="customForm.type">
@@ -1168,155 +993,116 @@
                   <option value="multi_choice">多选题</option>
                   <option value="true_false">判断题</option>
                   <option value="fill_blank">填空题</option>
+                  <option value="special_fill_blank">专项题</option>
                   <option value="essay">问答题</option>
                 </select>
               </div>
-              <textarea v-if="customForm.type === 'single_choice' || customForm.type === 'multi_choice'" class="md-field" v-model="customForm.options" placeholder="选项（每行一个）：A. 选项一&#10;B. 选项二" style="min-height:80px;"></textarea>
-              <input v-else class="md-field" v-model="customForm.answer" :placeholder="customForm.type === 'fill_blank' ? '答案（多空用 | 分隔，如：鸦片|1840）' : (customForm.type === 'true_false' ? '答案：对 或 错' : '参考答案')">
-              <div v-if="customForm.type === 'single_choice' || customForm.type === 'multi_choice'" class="select-row">
-                <input class="md-field" v-model="customForm.answer" :placeholder="customForm.type === 'single_choice' ? '正确答案字母，如：C' : '正确答案字母（逗号分隔），如：A,C'">
-              </div>
-              <button class="btn" style="margin-top:8px;" @click="addCustomQuestion"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>添加题目</button>
+              <textarea v-if="customForm.type === 'single_choice' || customForm.type === 'multi_choice'" class="md-field tall" v-model="customForm.options" placeholder="选项（每行一个）：A. 选项一&#10;B. 选项二"></textarea>
+              <input v-else class="md-field" v-model="customForm.answer"
+                     :placeholder="customForm.type === 'fill_blank' || customForm.type === 'special_fill_blank' ? '答案（多空用 | 分隔，导入时自动拆成逐空）' : (customForm.type === 'true_false' ? '答案：对 或 错' : '参考答案')">
+              <button class="btn" @click="addCustomQuestion"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>添加题目</button>
             </div>
-          </details>
+
+            <div class="md-study-group">
+              <div class="md-study-group-title">导出与备份</div>
+              <div class="select-row">
+                <button class="btn gray" @click="downloadCurrent"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>下载题库 JSON</button>
+                <button class="btn gray" @click="copyCurrent"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>复制 JSON</button>
+                <button class="btn gray" @click="downloadRules"><svg class="icon" aria-hidden="true"><use href="#i-doc"/></svg>JSON 规则</button>
+              </div>
+              <div class="backup-sub">备份包含题库、学习进度、错题本与会话恢复点，生成一个 JSON 文件。</div>
+              <div class="backup-actions">
+                <button class="btn" @click="doExportBackup"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>导出备份</button>
+                <label class="btn gray backup-import-btn">
+                  <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>导入备份
+                  <input type="file" accept=".json,application/json" style="display:none" @change="onImportBackup($event)">
+                </label>
+              </div>
+              <div class="err" v-if="!confirmClearAll">清空全部数据会删除题库、进度、错题本与恢复点，且不可撤销——除非你先前导出过备份。</div>
+              <div class="select-row">
+                <button v-if="!confirmClearAll" class="btn-text small" @click="doClearAll"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>清空全部数据</button>
+                <button v-else class="btn danger" @click="doClearAll"><svg class="icon" aria-hidden="true"><use href="#i-warn"/></svg>再点一次确认清空全部数据</button>
+              </div>
+            </div>
+
+            <div class="md-study-group">
+              <div class="md-study-group-title">外观</div>
+              <div class="md-study-per">
+                <span class="per-label">主题：</span>
+                <label class="per-chip"><input type="radio" value="auto" v-model="themeMode" @change="applyTheme()"><span>跟随系统</span></label>
+                <label class="per-chip"><input type="radio" value="light" v-model="themeMode" @change="applyTheme()"><span>浅色</span></label>
+                <label class="per-chip"><input type="radio" value="dark" v-model="themeMode" @change="applyTheme()"><span>深色</span></label>
+              </div>
+              <div class="md-study-per">
+                <span class="per-label">每日目标：</span>
+                <label class="per-chip" v-for="n in [10, 20, 30, 50]" :key="n"><input type="radio" :value="n" v-model.number="dailyTargetN" @change="saveDailyTarget"><span>{{ n }} 题</span></label>
+                <button class="btn-text small" @click="editDailyTarget">自定义</button>
+              </div>
+              <caliber-note icon="i-info">每日目标是「今日任务」的出题上限，到期题优先、不够再用未掌握题补，补不满就按实际数量。</caliber-note>
+            </div>
+
+            <div class="md-study-group">
+              <div class="md-study-group-title">关于</div>
+              <div class="md-bank-desc">MemoDeck {{ appVersion }} · 题库格式 viewVersion {{ viewVersion }} · 纯离线运行</div>
+              <div class="select-row">
+                <button class="btn-text small" @click="showAiModal = true"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>AI 题库转换提示词</button>
+              </div>
+            </div>
+          </section>
         </div>
+      </div>
 
-        <div class="card" v-else-if="catStage === 'test' && catCurrent" style="justify-content:flex-start;">
-          <div class="tag">{{ catCurrent.typeLabel }}</div>
-          <div style="display:flex; justify-content:space-between; margin-top:10px; color:var(--text-muted); font-size:14px;">
-            <span>第 {{ catIndex + 1 }} / {{ catStats.total }} 题</span>
-            <span>已答对 {{ catStats.right }} 题</span>
-            <button class="btn-text small" @click="catRestart" style="margin-left:auto;"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>退出考试</button>
+      <!-- 底部一级导航（<560px）。320–359 收为 3 栏，错题本与题库进「更多」（§5.3）。 -->
+      <nav class="md-tabbar" aria-label="主导航">
+        <button v-for="n in visibleNavItems" :key="n.key"
+                :class="{ active: n.key === 'more' ? isMoreActive : activeTab === n.key }"
+                @click="n.key === 'more' ? (showMoreSheet = true) : switchTab(n.key)"
+                :aria-current="n.key === 'more' ? null : (activeTab === n.key ? 'page' : null)">
+          <svg class="icon" aria-hidden="true"><use :href="'#i-' + n.icon"/></svg>
+          <span>{{ n.label }}</span>
+          <span class="badge" v-if="n.count">{{ n.count }}</span>
+        </button>
+      </nav>
+
+      <!-- 320 窄屏「更多」抽屉：错题本与题库的二级可达 -->
+      <div class="sheet-scrim" v-show="showMoreSheet" @click.self="showMoreSheet = false">
+        <section class="panel sheet" role="dialog" aria-modal="true" aria-label="更多">
+          <div class="sheet-grabber" aria-hidden="true"></div>
+          <div class="sheet-head">
+            <h2 class="sheet-title">更多</h2>
+            <button class="icon-btn" @click="showMoreSheet = false" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
           </div>
-          <div class="question">{{ catCurrent.question }}</div>
-
-          <div class="md-opt-list" v-if="catCurrent.rawType === 'single_choice' || catCurrent.rawType === 'multi_choice'">
-            <button class="md-opt" :class="{ selected: isCatOptionOn(k) }" v-for="(v, k) in catCurrent.options" :key="k" @click="catOptionClick(k)" :disabled="catRevealed">
-              <span class="md-opt-key">{{ k }}</span>{{ v }}
+          <div class="md-study-group" style="margin-top:12px; box-shadow:none;">
+            <button class="md-nav-item" @click="switchTab('wrongbook'); showMoreSheet = false">
+              <svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg><span>错题本</span>
+              <span class="count" v-if="wrongCount">{{ wrongCount }}</span>
+            </button>
+            <button class="md-nav-item" @click="switchTab('bank'); showMoreSheet = false">
+              <svg class="icon" aria-hidden="true"><use href="#i-bank"/></svg><span>题库</span>
             </button>
           </div>
-          <div class="md-tf" v-else-if="catCurrent.rawType === 'true_false'">
-            <button class="md-tf-btn" :class="{ selected: catChoice === 'true' }" @click="catChoice = 'true'" :disabled="catRevealed"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>正确</button>
-            <button class="md-tf-btn" :class="{ selected: catChoice === 'false' }" @click="catChoice = 'false'" :disabled="catRevealed"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>错误</button>
-          </div>
-          <div v-else>
-            <textarea v-if="catCurrent.rawType === 'essay'" class="md-field tall" v-model="catInput" placeholder="输入你的答案…" :disabled="catRevealed"></textarea>
-            <input v-else ref="catFillInput" class="md-field" v-model="catInput" :placeholder="(catCurrent.rawType === 'fill_blank' || catCurrent.rawType === 'special_fill_blank') ? '输入答案（多空用 | 分隔）' : '输入你的答案…'" :disabled="catRevealed">
-            <div class="insert-sep-row" v-if="catCurrent.rawType === 'fill_blank' || catCurrent.rawType === 'special_fill_blank'">
-              <button class="btn-text small" @click="insertCatSep" :disabled="catRevealed">｜ 插入分隔符</button>
-              <span class="sub">填空有多个空时，答案之间用它隔开</span>
-            </div>
-          </div>
+        </section>
+      </div>
 
-          <div v-if="catRevealed && catFeedback" class="md-feedback" :class="catFeedback.correct ? 'ok' : 'no'">
-            <div class="md-feedback-icon"><svg class="icon" aria-hidden="true"><use :href="catFeedback.correct ? '#i-check-circle' : '#i-x-circle'"/></svg></div>
-            <div class="md-feedback-text">{{ catFeedback.correct ? '回答正确' : '回答错误' }}</div>
-          </div>
-
-          <answer-view v-if="catRevealed && catFeedback && !catFeedback.correct && isObjective(catCurrent.rawType)" :item="catCurrent" style="margin-top:12px;"></answer-view>
-
-          <div v-if="catRevealed && !catFeedback && !isObjective(catCurrent.rawType)">
-            <answer-view :item="catCurrent" style="margin-top:12px;"></answer-view>
-            <div class="btn-group">
-              <button class="btn bad" @click="catSelfJudge(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>我答错了</button>
-              <button class="btn good" @click="catSelfJudge(true)"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>我答对了</button>
-            </div>
-          </div>
-
-          <div class="btn-group" v-if="!catRevealed">
-            <button class="btn gray" @click="catPrev" v-if="hasPrevCat">← 上一题</button>
-            <button class="btn wide" @click="catSubmit">提交答案</button>
-          </div>
-          <div class="btn-group" v-else-if="catFeedback">
-            <button class="btn gray" @click="catPrev" v-if="hasPrevCat">← 上一题</button>
-            <button class="btn wide" @click="catNext">{{ catNextLabel }}</button>
+      <!-- 通用确认对话框：交卷确认与「清空全部数据」这类不可逆操作走同一个组件（§4.1） -->
+      <div class="modal-mask" v-if="dialog" @click.self="closeDialog(false)">
+        <div class="modal-box" role="dialog" aria-modal="true" :aria-label="dialog.title" style="max-width:440px;">
+          <div class="modal-head"><h3>{{ dialog.title }}</h3></div>
+          <p class="sub" style="margin:12px 0 0; line-height:1.79;">{{ dialog.body }}</p>
+          <div class="modal-foot">
+            <button class="btn gray" @click="closeDialog(false)">{{ dialog.cancelText || '取消' }}</button>
+            <button :class="['btn', dialog.danger ? 'danger' : '']" @click="closeDialog(true)">{{ dialog.okText || '确定' }}</button>
           </div>
         </div>
-
-        <div class="card done-box" v-else-if="catStage === 'done'">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-flag2"/></svg>考试结束</h2>
-          <div class="score-board">
-            <div class="score-card"><div class="num">{{ catStats.total }}</div><div class="lbl">总题数</div></div>
-            <div class="score-card"><div class="num ok">{{ catStats.right }}</div><div class="lbl">答对</div></div>
-            <div class="score-card"><div class="num no">{{ catStats.wrong }}</div><div class="lbl">答错</div></div>
-            <div class="score-card"><div class="num" style="font-size:18px;">{{ catElapsed }}</div><div class="lbl">用时</div></div>
-          </div>
-          <p v-if="catWrongItems.length">答错 {{ catWrongItems.length }} 题，已自动加入错题本。</p>
-          <p v-else>全部答对，没有错题</p>
-          <div class="btn-group">
-            <button class="btn gray" @click="catRestart">重新选题</button>
-            <button class="btn" @click="switchTab('wrongbook')"><svg class="icon" aria-hidden="true"><use href="#i-wrongbook"/></svg>查看错题本</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="md-wrongbook" v-show="activeTab === 'wrongbook'">
-        <div class="panel">
-          <div class="panel-head wb-head" v-if="wrongCount">
-            <button class="btn danger small" @click="wrongClear()">清空全部</button>
-          </div>
-          <div class="wb-tabs">
-            <button v-for="t in wrongSourceTabs" :key="t.key" :class="{ on: wrongTab === t.key }" @click="wrongTab = t.key">{{ t.label }}错题 ({{ t.count }})</button>
-            <button :class="{ on: wrongTab === 'all' }" @click="wrongTab = 'all'">全部 ({{ wrongCount }})</button>
-          </div>
-          <!-- v2：状态分布（错题本状态面板） -->
-          <div class="wb-status-bar" v-if="wrongCount">
-            <span class="wb-status-chip new">新题 {{ wrongStatusDist.new }}</span>
-            <span class="wb-status-chip learning">学习中 {{ wrongStatusDist.learning }}</span>
-            <span class="wb-status-chip weak">待巩固 {{ wrongStatusDist.weak }}</span>
-            <span class="wb-status-hint">连续答对 3 次自动移除</span>
-          </div>
-          <div class="select-row" v-if="wrongFiltered.length">
-            <button class="btn" @click="startWrongPractice(wrongItems)"><svg class="icon" aria-hidden="true"><use href="#i-practice"/></svg>加强练习</button>
-            <button class="btn" @click="startWrongExam(wrongItems)"><svg class="icon" aria-hidden="true"><use href="#i-category"/></svg>重新考试</button>
-          </div>
-        </div>
-
-        <div class="panel" v-if="wrongPracticeQueue.length">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; color:var(--text-muted); font-size:14px;">
-            <span>错题练习 · 剩余 {{ wrongPracticeQueue.length }} 张</span>
-            <button class="btn-text small" @click="wrongPracticeQueue = []">结束练习</button>
-          </div>
-          <div class="card">
-            <div class="tag">{{ wrongPracticeQueue[0].it.typeLabel }}</div>
-            <div class="question">{{ wrongPracticeQueue[0].it.q }}</div>
-            <answer-view v-if="wrongPracticeShow" :item="wrongPracticeQueue[0].it"></answer-view>
-            <div class="btn-group" v-if="!wrongPracticeShow">
-              <button class="btn wide" @click="wrongPracticeShow = true"><svg class="icon" aria-hidden="true"><use href="#i-preview"/></svg>看答案</button>
-            </div>
-            <div class="btn-group" v-else>
-              <button class="btn bad" @click="wrongMark(false)"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"/></svg>没记住</button>
-              <button class="btn good" @click="wrongMark(true)"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>记住了</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="empty-hint" v-if="!wrongFiltered.length && !wrongPracticeQueue.length">该分类暂无错题。</div>
-        <div class="wb-item" v-for="e in wrongFiltered" :key="e.id">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-            <span class="src-tag" :class="e.source">{{ sourceLabel(e.source) }}</span>
-            <span class="wb-item-stats">
-              <span class="wb-status-chip small" :class="e.status || 'new'">
-                <svg class="icon" aria-hidden="true"><use :href="e.status === 'learning' ? '#i-study' : e.status === 'weak' ? '#i-flame' : e.status === 'mastered' ? '#i-trophy' : '#i-circle'"/></svg>
-                {{ e.status === 'learning' ? '学习中' : e.status === 'weak' ? '待巩固' : e.status === 'mastered' ? '已掌握' : '新题' }}
-              </span>
-              <span class="wb-err-count" v-if="e.wrongCount > 1">错 {{ e.wrongCount }} 次</span>
-              <span class="wb-streak" v-if="e.correctStreak > 0">{{ e.correctStreak }}</span>
-            </span>
-            <button class="btn-text small" @click="wrongRemove(e.id)"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>移除</button>
-          </div>
-          <div class="exam-q" style="margin-top:8px;">{{ e.item.q }}</div>
-          <answer-view :item="e.item" style="margin-top:10px;"></answer-view>
-        </div>
-      </section>
+      </div>
 
       <div class="modal-mask" v-if="showAiModal" @click.self="showAiModal = false">
         <div class="modal-box" role="dialog" aria-modal="true" aria-label="AI 题库转换提示词">
           <div class="modal-head">
-            <h3 style="margin:0;"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>AI 题库转换提示词</h3>
-            <button class="btn-text small" @click="showAiModal = false"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>关闭</button>
+            <h3><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>AI 题库转换提示词</h3>
+            <button class="btn-text small" @click="showAiModal = false" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
           </div>
-          <p class="sub" style="margin:10px 0;">把下面的提示词发给任意 AI（ChatGPT / 文心一言 / 豆包 等），附上试卷照片或题目文本，即可生成题库 JSON。</p>
+          <p class="sub" style="margin:10px 0;">把下面的提示词发给任意 AI，附上试卷照片或题目文本，即可生成题库 JSON。</p>
           <textarea class="ai-prompt" readonly>{{ aiPrompt }}</textarea>
           <div class="modal-foot">
             <button class="btn" @click="copyAiPrompt"><svg class="icon" aria-hidden="true"><use :href="aiCopied ? '#i-check-circle' : '#i-copy'"/></svg>{{ aiCopied ? '已复制' : '复制提示词' }}</button>
@@ -1325,23 +1111,22 @@
         </div>
       </div>
 
-      <div class="toast" :class="{ err: !toastOk }" v-if="toastMsg">{{ toastMsg }}</div>
+      <div class="toast" :class="{ err: !toastOk }" v-if="toastMsg" role="status" aria-live="polite">{{ toastMsg }}</div>
 
     </div>
   </div>
 
-  <!-- 内置默认题库（离线兜底） -->
+  <!-- 内置默认题库（离线兜底：第一次打开就能完成一次完整刷题，§5.2） -->
   <script src="default-bank.js"></script>
-  <!-- 本地 Vue（纯离线） -->
+  <!-- 本地 Vue（纯离线，无构建步骤） -->
   <script src="vendor/vue.global.prod.js"></script>
   <!-- 运行配置（可自定义远程题库地址 / JSON 管理服务入口） -->
   <script src="config.js"></script>
-  <!-- 分模块 JS -->
+  <!-- 分模块 JS：加载顺序敏感（migration 必须在 progress 之前，session 必须在 progress 之后） -->
   <script src="js/core.js"></script>
   <script src="js/store.js"></script>
   <script src="js/leitner.js"></script>
   <script src="js/wrongbook.js"></script>
-  <!-- 阶段 0 新增：迁移层 & 学习状态层 & 会话层 & 统计层 -->
   <script src="js/migration.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/utils.js"></script>
@@ -1350,6 +1135,10 @@
   <script src="js/session.js"></script>
   <script src="js/stats.js"></script>
   <script src="js/backup.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/judge.js"></script>
+  <script src="js/types.js"></script>
+  <script src="js/components.js"></script>
   <script src="js/app.js"></script>
 
   <!-- JSON 规则兜底摘要（viewVersion 从 config.js 动态读取）-->
@@ -1366,17 +1155,18 @@
     '{ "view": "exam-bank", "viewVersion": "' + _vv + '", "meta": {"title":"题库名"}, "features": {...}, "papers": [ {"id":"卷1","name":"试卷名","questions": [...]} ] }',
     '',
     '## 题目（type 决定结构）',
-    'fill_blank 填空题：question + blanks:[{index,answer}]',
+    'fill_blank 填空题：question + blanks:[{index,answer}]（answer 用 | 分隔也可，导入时自动拆成逐空）',
     'true_false 判断题：question + answer:true/false',
     'single_choice 单选题：question + options:{A,B,C} + answer:"A"',
     'multi_choice 多选题：question + options + answer:["A","B"]',
     'essay 问答题：question + answer:"文本"',
-    'special_fill_blank 专项题：question + blanks',
+    'special_fill_blank 专项题：question + blanks（与填空题同结构）',
     '',
     '## 说明',
     '- 一份文件可含多份卷子（papers 数组），可任意扩展。',
-    '- 未知题型会兜底显示题干与 answer，不会报错。',
-    '- 兼容旧格式（顶层卷子键 + 分题型对象）。'
+    '- 未注册的题型走只读兜底显示，不判分、不写进度、不报错。',
+    '- 兼容旧格式（顶层卷子键 + 分题型对象）。',
+    '- features 的旧开关键名（practice / preview）3.0 起不改名不删除，映射到练习页的模式可见性。'
   ].join('\n');
 })();
   </script>

@@ -1,11 +1,17 @@
 /* ============================================================
- * MemoDeck · Components
- * Header / Button / Card / Panel / Tab Nav / Progress / Answer / Modal / Toast / Empty
+ * MemoDeck 3.0 · Components（DESIGN.md §4.1 组件族 + §4.5 图标规则）
+ *
+ * 三条实现约定，破坏任何一条都会让「一个组件两套样子」重新长出来：
+ *   1. 尺寸与颜色只读 token（--md-* / §4.1 表里的档位），不写字面值。
+ *   2. 状态切换不得引起尺寸位移：状态只改 边框色/填充色/图标，不改
+ *      padding、border-width、min-height。（2.x 用 1.5px 边框 + hover 换色，
+ *      本身就是位移源；3.0 统一 1px 描边 + 底色变化。）
+ *   3. 形状即语义（§4.2）：单选=圆形点、多选=方形框、填空=带序号输入框、
+ *      判断=两个大按钮。不得为了视觉统一互换。
  * ============================================================ */
 
-
-/* ============ 图标 ============ */
-/* 符号表本体不参与布局；<use> 引用仍可渲染 */
+/* ============ 图标（§4.5 构建规则） ============ */
+/* 规则 3：一个图标 = 一个内联 SVG；符号表本体不参与布局 */
 .icon-defs { display: none; }
 .icon {
   width: 1.15em; height: 1.15em;
@@ -15,22 +21,26 @@
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-  /* 与相邻文字保持视觉基线，emoji 原本靠字形自带的光学居中 */
   vertical-align: -0.18em;
-  /* 图标与后随文字默认留缝。绝大多数站点是「图标 + 文字」，所以反过来
-     只在用 flex gap 排布的容器和纯图标容器里清掉（见下） */
   margin-right: .375em;
 }
-.tab-nav button .icon, .md-home-card-title .icon, .md-home-quick-btn .icon,
-.icon-btn .icon, .theme-btn .icon, .md-feedback-icon .icon,
+/* 规则 1/2：容器负责底色与圆角，图标只负责字形，一律 flex 居中，
+   禁止用 padding 或绝对定位去「挪」图标（改尺寸必然再次错位）。
+   这些容器都已经是 display:flex + align/justify:center，图标在其中不需要外边距。 */
+.tab-nav button .icon, .md-nav-item .icon, .md-home-card-title .icon,
+.md-home-quick-btn .icon, .icon-btn .icon, .theme-btn .icon,
+.md-judge-badge .icon,
 .md-study-summary-emoji .icon, .perfect-emoji .icon, .resume-icon .icon,
-.wb-status-chip.small .icon { margin-right: 0; }
+.md-chip .icon, .md-caliber .icon { margin-right: 0; }
+
+/* 自检（§4.5）：把 .icon-debug 加到任意图标容器上，底色会变成高对比色，
+   字形若偏离几何中心一眼可见。22 / 24 / 30 / 44 四档都要跑一遍。 */
+.icon-debug { background: #FF00FF !important; }
 
 /* ============ 吸顶应用栏（iOS nav bar） ============ */
-/* 一整块浮动的毛玻璃条：标题行 + Tab 分段控件。原来 header 与 tab-nav 各滚各的，
-   滚下去就没有导航了；合成一块 sticky 后导航常驻，且内容从它下面穿过去。
+/* 一整块浮动的毛玻璃条：标题行 + 模式分段控件。
    ⚠️ backdrop-filter 会给后代的 position:fixed 建立包含块 —— 这里只包 header 和 nav，
-   没有固定元素，所以安全；别把 .md-exam-footer / .toast 之类挪进来。 */
+   没有固定元素，所以安全；别把 .md-actionbar / .toast 之类挪进来。 */
 .appchrome {
   position: sticky; top: 8px; z-index: 20;
   width: 100%;
@@ -50,516 +60,857 @@
 .appbar-lead { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .appbar-title {
   margin: 0;
-  font-size: var(--font-xl);
+  font-size: var(--font-3xl);
+  line-height: var(--md-lh-title);
   font-weight: 700;
-  color: var(--text-main);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  color: var(--md-text-primary);
+  letter-spacing: 0;
 }
 .appbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 
-/* 图标按钮：导航栏右侧只放图标，不放「⚙️ 数据管理」这种带文字的灰胶囊 */
+/* 图标按钮：44×44 触摸目标（验收硬门槛），底色是圆形容器，字形由 flex 居中 */
 .icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;
   border: none; border-radius: var(--radius-full);
-  background: transparent; color: var(--text-muted);
+  background: transparent; color: var(--md-text-secondary);
   font-size: var(--font-xl); cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition: background var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
 }
-.icon-btn:hover { background: var(--fill-primary); color: var(--text-main); }
+.icon-btn:hover { background: var(--fill-primary); color: var(--md-text-primary); }
 .icon-btn:active { background: var(--fill-secondary); }
 .icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.icon-btn.active { background: var(--primary-bg); color: var(--primary); }
+.icon-btn.active { background: var(--md-amber-surface); color: var(--md-amber); }
 
-.sub { color: var(--text-muted); font-size: var(--font-sm); }
+.sub { color: var(--md-text-secondary); font-size: var(--font-sm); }
 
-/* ============ 按钮（iOS 原生风格） ============ */
+/* ============ 按钮（§4.1） ============ */
+/* 主按钮：高 52–54、圆角 27、墨底白字（深色纸底墨字）。
+   禁用 38% 不透明；按压叠 4% 遮罩 —— 用 inset box-shadow 而不是 opacity，
+   这样「禁用 38%」和「按压 4%」两档互不干扰，且尺寸零位移。 */
 .btn {
-  min-height: 44px; padding: 10px 20px; border: none; border-radius: var(--radius-sm);
-  font-size: 15px; font-weight: 600; cursor: pointer;
-  color: var(--on-accent);
-  background: var(--primary);
-  transition: transform 60ms var(--ease-out), opacity var(--dur-fast), background var(--dur-fast);
+  min-height: var(--md-h-btn-primary);
+  padding: 12px 22px; border: none; border-radius: var(--md-r-button);
+  font-size: var(--font-lg); line-height: var(--md-lh-option);
+  font-weight: 600; cursor: pointer;
+  color: var(--md-ink-on);
+  background: var(--md-ink);
+  transition: box-shadow var(--dur-instant) var(--ease-out),
+              opacity var(--dur-instant) var(--ease-out),
+              background var(--dur-instant) var(--ease-out);
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
-.btn:hover  { background: var(--primary-hover); }
-.btn:active { transform: scale(0.97); opacity: 0.88; }
+.btn:hover  { background: var(--md-ink); box-shadow: inset 0 0 0 999px rgba(128, 128, 128, .06); }
+.btn:active { box-shadow: inset 0 0 0 999px rgba(128, 128, 128, .10); }
 .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; }
 
+/* 次按钮：高 44、圆角 22、下沉面底 */
+.btn.gray, .btn.secondary {
+  min-height: var(--md-h-btn-second);
+  padding: 10px 18px; border-radius: 22px;
+  background: var(--md-surface-sunken);
+  color: var(--md-text-primary);
+  font-weight: 500;
+}
+.btn.gray:hover, .btn.secondary:hover {
+  background: var(--md-surface-sunken);
+  box-shadow: inset 0 0 0 999px rgba(128, 128, 128, .06);
+}
+.btn.gray:active, .btn.secondary:active { box-shadow: inset 0 0 0 999px rgba(128, 128, 128, .10); }
+.btn.gray:disabled, .btn.secondary:disabled { opacity: .38; box-shadow: none; }
+
+/* 描边档：用于「不抢主操作注意力」的可达出口 */
 .btn.ghost {
-  background: transparent; color: var(--primary);
-  border: 1px solid var(--border-opaque);
+  min-height: var(--md-h-btn-second);
+  background: transparent; color: var(--md-text-primary);
+  border: 1px solid var(--md-border-strong);
 }
-.btn.ghost:hover { background: var(--primary-bg); }
+.btn.ghost:hover { background: var(--fill-tertiary); box-shadow: none; }
 
-.btn.gray {
-  background: var(--fill-primary);
-  color: var(--text-main);
-}
-.btn.gray:hover { background: var(--fill-secondary); }
-.btn.gray:active { background: var(--fill-tertiary); }
+/* 语义填充档：判对/判错只出现在反馈层，不做主按钮（§7.1 禁止项） */
+.btn.good { background: var(--md-judge-correct); color: var(--on-accent); }
+.btn.bad, .btn.danger { background: var(--md-judge-wrong); color: var(--on-accent); }
+.btn.good:hover, .btn.bad:hover, .btn.danger:hover { box-shadow: inset 0 0 0 999px rgba(128, 128, 128, .08); }
 
-.btn.good { background: var(--success-fill); }
-.btn.bad  { background: var(--danger-fill); }
-
-.btn.danger { background: var(--danger-fill); }
-.btn.danger:hover { opacity: 0.9; }
-
+/* 小按钮同样要 ≥44 触摸目标（验收硬门槛）。视觉尺寸可以小，命中区不能小：
+   用 min-height 保证纵向，用 ::after 铺一层满格伪按钮区撑横向命中面。 */
 .btn.small {
-  min-height: 32px; padding: 5px 12px; font-size: 13px;
-  border-radius: var(--radius-sm); font-weight: 500;
+  min-height: var(--md-hit);
+  padding: 6px 14px; font-size: var(--font-md);
+  border-radius: 22px; font-weight: 500;
 }
 .btn.wide { width: 100%; }
 
 .btn-text {
-  background: transparent; color: var(--primary);
-  min-height: 32px; padding: 6px 10px;
-  border: none; font-weight: 500;
+  background: transparent; color: var(--md-amber);
+  min-height: var(--md-hit); padding: 6px 12px;
+  border: none; font-weight: 500; cursor: pointer; font-family: inherit;
+  border-radius: var(--md-r-chip);
 }
-.btn-text:hover { background: var(--primary-bg); border-radius: var(--radius-sm); }
-.btn-text.small { font-size: 13px; }
+.btn-text:hover { background: var(--md-amber-tint); }
+.btn-text:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn-text.small { font-size: var(--font-md); }
 
-/* ============ 面板 / 卡片（iOS grouped list cell 质感） ============ */
-/* v2.1: 显式 width:100%，和 header / tab-nav / .md-* 保持一致 */
+/* ============ 面板 / 卡片 ============ */
+/* §5.4：卡片只用于真正独立的重复对象，不嵌套卡片 */
 .panel {
-  background: var(--card-bg);
-  border: none;
-  border-radius: var(--radius);
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-card);
   padding: 18px 20px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow-card);
+  margin-bottom: var(--sp-6);
+  box-shadow: var(--md-shadow-1);
   width: 100%;
 }
 .panel-head {
   display: flex; flex-wrap: wrap; gap: 10px;
   align-items: center; justify-content: space-between;
 }
-/* 面板末尾的说明行：与上方内容用一条 hairline 分开，不靠字号硬凹 */
 .panel-foot {
   margin-top: 14px; padding-top: 12px;
-  border-top: 1px solid var(--border-sub);
-  font-size: var(--font-sm); color: var(--text-tertiary);
+  border-top: 1px solid var(--md-border);
+  font-size: var(--font-sm); color: var(--md-text-tertiary);
 }
 
-/* ============ 浮层 Sheet（数据管理） ============ */
-/* 移动端从底部滑出、≥601px 居中成对话框。背板用 v-show（= display:none），
-   不用 opacity 隐藏 —— 项目里已经踩过「透明层继续拦截点击」的坑。 */
+/* ============ 浮层 Sheet ============ */
+/* 移动端从底部滑出、≥560px 居中成对话框（断点与 §5.3 导航切换点同一条：560）。
+   背板用 v-show（= display:none），不用 opacity 隐藏 —— 项目里已经踩过「透明层继续拦截点击」的坑。 */
 .sheet-scrim {
   position: fixed; inset: 0; z-index: 90;
   display: flex; align-items: flex-end; justify-content: center;
-  background: rgba(20, 31, 45, 0.4);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  background: rgba(20, 18, 16, 0.45);
   animation: modalFade .18s var(--ease-out);
 }
 .sheet {
   width: 100%; max-width: 560px; margin: 0;
   max-height: calc(88vh - env(safe-area-inset-top, 0px));
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border-radius: var(--md-r-sheet) var(--md-r-sheet) 0 0;
   padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  background: var(--elevated-bg);
-  box-shadow: var(--shadow-modal);
+  background: var(--md-surface);
+  box-shadow: var(--md-shadow-3);
   animation: sheetUp .28s var(--ease-out);
 }
 .sheet-grabber {
   width: 36px; height: 5px; margin: 0 auto 12px;
-  border-radius: var(--radius-full); background: var(--fill-primary);
+  border-radius: var(--radius-full); background: var(--md-border-strong);
 }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.sheet-title { margin: 0; font-size: var(--font-3xl); font-weight: 700; letter-spacing: -0.02em; }
+.sheet-title { margin: 0; font-size: var(--font-3xl); line-height: var(--md-lh-title); font-weight: 700; letter-spacing: 0; }
 .sheet-sub {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-top: 6px; font-size: var(--font-sm); color: var(--text-muted);
+  margin-top: 6px; font-size: var(--font-sm); color: var(--md-text-secondary);
 }
-.sheet-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.sheet-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-3); }
 @keyframes sheetUp {
   from { transform: translateY(28px); opacity: .5; }
   to { transform: none; opacity: 1; }
 }
-@media (min-width: 601px) {
-  .sheet-scrim { align-items: center; padding: 24px; }
-  .sheet { border-radius: var(--radius-xl); max-height: 86vh; }
+@media (min-width: 560px) {
+  .sheet-scrim { align-items: center; padding: var(--sp-6); }
+  .sheet { border-radius: var(--md-r-sheet); max-height: 86vh; }
   .sheet-grabber { display: none; }   /* 拖拽指示条是底部抽屉的暗示，居中对话框没有这回事 */
 }
 
 .src-badge {
-  font-size: 12px; font-weight: 600; padding: 3px 10px;
-  border-radius: var(--radius-lg2);
-  background: var(--fill-primary); color: var(--text-muted);
+  font-size: var(--font-sm); line-height: var(--md-lh-meta); font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--md-r-pill);
+  background: var(--md-surface-sunken); color: var(--md-text-secondary);
 }
-.src-badge.local  { background: var(--primary-bg); color: var(--primary); }
-.src-badge.remote { background: var(--success-bg); color: var(--success); }
-.src-badge.paste  { background: var(--warn-bg); color: var(--warn); }
-.src-badge.default { background: var(--fill-primary); color: var(--text-muted); }
-.src-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; word-break: break-all; }
+.src-badge.local, .src-badge.remote { background: var(--md-amber-surface); color: var(--md-amber); }
+.src-badge.paste  { background: var(--md-judge-pending-surface); color: var(--md-judge-pending); }
+.src-badge.default { background: var(--md-surface-sunken); color: var(--md-text-tertiary); }
+.src-meta { font-size: var(--font-sm); color: var(--md-text-tertiary); margin-top: 6px; word-break: break-all; }
 
-.src-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.src-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
 .src-actions input[type="text"] {
-  flex: 1; min-width: 220px; min-height: 44px; padding: 10px 14px;
-  border: 0; border-radius: var(--radius-sm);
-  background: var(--fill-primary);
-  font-size: 15px; font-family: inherit;
+  flex: 1; min-width: 220px; min-height: var(--md-hit); padding: 10px 14px;
+  border: 1px solid var(--md-border); border-radius: var(--md-r-option);
+  background: var(--md-surface-sunken);
+  font-size: 16px; font-family: inherit;   /* ≥16px：iOS 自动缩放（§5.5） */
 }
 .src-actions input[type="text"]:focus-visible {
-  outline: none; background: var(--card-bg);
+  outline: none; background: var(--md-surface);
   box-shadow: var(--focus-ring);
 }
 textarea.paste-box {
   width: 100%; min-height: 130px; margin-top: 10px; padding: 12px 14px;
-  border: 0; border-radius: var(--radius-sm);
-  background: var(--fill-primary);
-  font-size: 13px;
-  font-family: "SF Mono", Consolas, "Courier New", monospace; resize: vertical;
+  border: 1px solid var(--md-border); border-radius: var(--md-r-option);
+  background: var(--md-surface-sunken);
+  font-size: var(--font-base);
+  font-family: var(--font-mono); resize: vertical; color: var(--md-text-primary);
 }
-textarea.paste-box:focus-visible { outline: none; box-shadow: var(--focus-ring); background: var(--card-bg); }
+textarea.paste-box:focus-visible { outline: none; box-shadow: var(--focus-ring); background: var(--md-surface); }
 
 .drop-zone {
-  border: 2px dashed var(--border-opaque);
-  border-radius: var(--radius);
-  margin-top: 12px;
+  border: 2px dashed var(--md-border-strong);
+  border-radius: var(--md-r-card);
+  margin-top: var(--sp-3);
   padding: 22px 16px; text-align: center;
-  color: var(--text-muted); font-size: 14px;
-  transition: background var(--dur-fast), border-color var(--dur-fast);
-  background: var(--fill-tertiary);
+  color: var(--md-text-secondary); font-size: var(--font-base);
+  transition: background var(--dur-instant), border-color var(--dur-instant);
+  background: var(--md-surface-sunken);
 }
 .drop-zone.active {
-  border-color: var(--primary);
-  background: var(--primary-bg);
-  color: var(--primary);
+  border-color: var(--md-amber);
+  background: var(--md-amber-surface);
+  color: var(--md-amber);
 }
-.expose-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
-.expose-row .lbl { font-size: 14px; color: var(--text-muted); }
+.expose-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: 14px; }
+.expose-row .lbl { font-size: var(--font-base); color: var(--md-text-secondary); }
 .paper-switch select {
-  min-height: 44px; padding: 6px 12px;
-  border: 0; border-radius: var(--radius-sm);
-  background: var(--fill-primary);
-  font-size: 15px; font-family: inherit;
-  appearance: none;
-  -webkit-appearance: none;
+  min-height: var(--md-hit); padding: 6px 12px;
+  border: 1px solid var(--md-border); border-radius: var(--md-r-option);
+  background: var(--md-surface-sunken);
+  font-size: var(--font-lg); font-family: inherit;
+  appearance: none; -webkit-appearance: none;
   padding-right: 28px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238A827B' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
   background-repeat: no-repeat; background-position: right 10px center;
+  color: var(--md-text-primary);
 }
 .paper-switch select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .err {
-  color: var(--danger); font-size: 13px; margin-top: 10px; white-space: pre-wrap;
-  background: var(--danger-bg); padding: 10px 12px; border-radius: var(--radius-sm);
+  color: var(--md-judge-wrong); font-size: var(--font-base); margin-top: 10px; white-space: pre-wrap;
+  background: var(--md-judge-wrong-surface); padding: 10px 12px; border-radius: var(--md-r-option);
 }
 
 /* —— 数据备份与恢复 —— */
 .backup-row {
-  margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border);
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--md-border);
   display: flex; flex-direction: column; gap: 10px;
 }
-.backup-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
-.backup-sub { font-size: 12px; color: var(--text-muted); }
-.backup-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.backup-import-btn { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; }
+.backup-title { font-size: var(--font-base); font-weight: 600; color: var(--md-text-primary); }
+.backup-sub { font-size: var(--font-sm); color: var(--md-text-secondary); }
+.backup-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.backup-import-btn { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
 
-/* ============ Tab 导航（iOS Segmented + Tab Bar 双模式） ============ */
-.tab-nav {
-display: flex; flex-wrap: wrap; gap: 4px;
-justify-content: center;
-padding: 4px;
-background: var(--surface-3);
-box-shadow: var(--shadow-inset);
-border-radius: var(--radius-lg2);
-width: 100%;
+/* ============ 一级导航：移动端底部 Tab Bar（§5.1 / §5.3） ============ */
+/* 底部固定操作区用 1px 顶部描边而非阴影——它不是浮层，是页面结构的延续（§6）。 */
+.md-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: stretch;
+  background: var(--md-surface);
+  border-top: 1px solid var(--md-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+.md-tabbar button {
+  flex: 1 1 0;
+  min-height: var(--md-hit);
+  padding: 8px 4px 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  border: none; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: var(--font-sm); line-height: 1.2; font-weight: 500;
+  color: var(--md-text-tertiary);
+  position: relative;
+  transition: color var(--dur-instant) var(--ease-out);
+}
+.md-tabbar button + button { margin-left: var(--md-gap-target); }
+.md-tabbar button .icon { width: 24px; height: 24px; font-size: 24px; margin-right: 0; }
+.md-tabbar button:hover { color: var(--md-text-primary); }
+.md-tabbar button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.md-tabbar button.active { color: var(--md-ink); font-weight: 600; }
+/* 选中态的第二线索不靠颜色：图标加重 + 顶部 3px 短标（§2.4 状态不依赖颜色） */
+.md-tabbar button.active::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 3px; border-radius: 0 0 3px 3px; background: var(--md-amber);
+}
+.md-tabbar .badge {
+  position: absolute; top: 4px; left: calc(50% + 6px);
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--md-judge-wrong); color: var(--on-accent);
+  font-size: var(--font-xs); line-height: 18px; border-radius: var(--md-r-pill); font-weight: 600;
+  text-align: center;
+}
+/* 数字角标只在平板/桌面出现（§5.4：移动端因空间不足不带） */
+.md-tabbar .badge { display: none; }
+
+/* ============ 一级导航：≥560px 左侧栏（§5.3） ============ */
+.md-shell { display: block; }
+.md-sidebar {
+  display: none;
+  flex-direction: column; gap: var(--sp-1);
+  width: var(--md-sidebar-w);
+  flex-shrink: 0;
+  padding: var(--sp-3) 0;
+}
+.md-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  min-height: var(--md-hit);
+  padding: 8px 12px;
+  border: none; border-radius: var(--md-r-option);
+  background: transparent; cursor: pointer;
+  font-family: inherit; font-size: var(--font-lg); color: var(--md-text-secondary);
+  text-align: left; width: 100%;
+  transition: background var(--dur-instant) var(--ease-out), color var(--dur-instant);
+}
+.md-nav-item:hover { background: var(--fill-tertiary); color: var(--md-text-primary); }
+.md-nav-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.md-nav-item.active { background: var(--md-ink); color: var(--md-ink-on); font-weight: 600; }
+.md-nav-item .count {
+  margin-left: auto; font-family: var(--md-font-num); font-variant-numeric: tabular-nums;
+  font-size: var(--font-sm); color: var(--md-text-tertiary);
+}
+.md-nav-item.active .count { color: var(--md-ink-on); opacity: .7; }
+
+/* ============ 分段控件（练习页模式切换，§5.1） ============ */
+.md-seg {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  justify-content: flex-start;
+  padding: 4px;
+  background: var(--md-surface-sunken);
+  border-radius: var(--md-r-pill);
+  width: 100%;
+}
+.md-seg button {
+  flex: 0 1 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: var(--md-hit);
+  padding: 6px 14px;
+  border-radius: var(--md-r-pill);
+  font-size: var(--font-md); font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  color: var(--md-text-secondary);
+  background: transparent; border: none;
+  position: relative;
+  transition: color var(--dur-instant), background var(--dur-instant), box-shadow var(--dur-instant);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: 0;
+}
+.md-seg button:hover { color: var(--md-text-primary); }
+.md-seg button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.md-seg button.active {
+  background: var(--md-surface);
+  color: var(--md-text-primary);
+  box-shadow: var(--md-shadow-1);
+  font-weight: 600;
+}
+/* 分段溢出时横向滚动而非折行：折成两行的分段控件读起来像坏了 */
+@media (max-width: 559px) {
+  .md-seg { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain; scrollbar-width: none; }
+  .md-seg::-webkit-scrollbar { display: none; }
+  .md-seg button { flex: 0 0 auto; }
+}
+
+/* 2.x 的 .tab-nav 类名保留为 .md-seg 的别名容器（页面里仍有一处读它） */
+.tab-nav { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: var(--sp-3) 0; }
 .tab-nav button {
-flex: 0 1 auto;
-display: inline-flex; align-items: center; gap: 6px;
-min-height: 36px;
-padding: 6px 12px;
-border-radius: var(--radius-md);
-font-size: 14px; font-weight: 500;
-cursor: pointer; font-family: inherit;
-color: var(--text-muted);
-background: transparent;
-border: none;
-position: relative;
-transition: color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast);
-white-space: nowrap;
--webkit-tap-highlight-color: transparent;
-letter-spacing: -0.01em;
+  min-height: var(--md-hit); padding: 8px 14px;
+  border-radius: var(--md-r-pill);
+  border: 1px solid var(--md-border-strong); background: transparent;
+  color: var(--md-text-secondary); font-size: var(--font-md); font-family: inherit; cursor: pointer;
 }
-.tab-nav button:hover { color: var(--text-main); }
-.tab-nav button:active { transform: scale(0.97); }
+.tab-nav button.active { background: var(--md-ink); color: var(--md-ink-on); border-color: var(--md-ink); font-weight: 600; }
 .tab-nav button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.tab-nav button.active {
-background: var(--surface);
-color: var(--primary);
-box-shadow: var(--shadow-card);
-font-weight: 600;
-}
-.tab-nav .badge {
-position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;
-background: var(--danger-fill); color: var(--on-accent); font-size: 11px; line-height: 18px; border-radius: var(--radius-sm); font-weight: 600;
-}
-/* ============ 进度条 ============ */
-.progress-bar-container { width: 100%; height: 8px; background: var(--border-sub); border-radius: var(--radius-sm); margin-bottom: 14px; overflow: hidden; }
-.progress-bar { height: 100%; background: var(--success); transition: width .3s ease; border-radius: var(--radius-sm); }
 
-/* ============ 记忆闯关卡片（iOS grouped card 质感） ============ */
+/* ============ 进度条（§1.2：进度归琥珀，不用于主按钮） ============ */
+.progress-bar-container { width: 100%; height: 8px; background: var(--md-surface-sunken); border-radius: var(--md-r-pill); margin-bottom: 14px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--md-amber); border-radius: var(--md-r-pill); transition: width var(--dur-base) var(--ease-out); }
+
+/* ============ 卡片（背诵卡的容器） ============ */
 .card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-card);
   padding: 36px 28px 28px;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--md-shadow-2);
   min-height: 260px;
   display: flex; flex-direction: column; justify-content: center; position: relative;
-  border: none;
 }
 .tag {
-  position: absolute; top: 16px; left: 16px;
-  background: var(--primary-bg); color: var(--primary);
+  position: absolute; top: var(--sp-4); left: var(--sp-4);
+  background: var(--md-surface-sunken); color: var(--md-text-secondary);
   border: none;
-  padding: 3px 12px; border-radius: var(--radius-lg2);
-  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 3px 12px; border-radius: var(--md-r-pill);
+  font-size: var(--font-sm); font-weight: 600; letter-spacing: 0;
 }
-/* 在 flex 头部容器里，tag 不需要绝对定位 */
 .md-study-card-head .tag { position: static; flex-shrink: 0; }
-.question { font-size: 19px; font-weight: 600; margin: 20px 0 22px; white-space: pre-wrap; line-height: 1.5; }
+/* 题干 18/29，可承载 120 字长题干；任何断点都不截断、不缩字（§8 铁律） */
+.question {
+  font-size: var(--font-xl); line-height: var(--md-lh-question);
+  font-weight: 600; margin: 20px 0 22px;
+  white-space: pre-wrap; color: var(--md-text-primary); letter-spacing: 0;
+}
 .btn-group { display: flex; gap: 14px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
-.btn.wide { background: var(--primary); }
 .btn.good { flex: 1; max-width: 220px; }
 .btn.bad  { flex: 1; max-width: 220px; }
 
-/* 答案展示 — iOS 风格 */
-.answer-box {
-  font-size: 16px; padding: 16px 18px;
-  background: var(--success-bg);
-  border: none;
-  border-radius: var(--radius-sm);
-  margin-top: 4px;
+/* ============ 状态芯片（§4.1，8 档） ============ */
+/* 高 22–24、圆角 11–12、文字 10–11px。八档名字见 §7.3：
+   记忆侧 新题/学习中/需复习/已掌握，错题侧 新错/巩固中/模糊/已攻克。
+   两套绝不同名，且每档都自带文字，不靠颜色读状态（§2.4）。 */
+.md-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: var(--md-h-chip); padding: 0 9px;
+  border-radius: 11px;
+  font-size: var(--font-xs); line-height: 1; font-weight: 600; white-space: nowrap;
+  background: var(--md-surface-sunken); color: var(--md-text-secondary);
+  box-shadow: var(--md-shadow-1);
+  letter-spacing: 0;
 }
-.answer-title { font-weight: 600; color: var(--success); margin-bottom: 10px; font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; }
-.answer-item {
-  display: flex; align-items: center; margin: 8px 0;
-  background: var(--card-bg); padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  border: none;
-  box-shadow: var(--shadow-inset);
-}
-.answer-index {
-  background: var(--success-bg); color: var(--success);
-  border: none;
-  padding: 2px 10px; border-radius: var(--radius-sm);
-  font-weight: 600; font-size: 13px; margin-right: 12px; min-width: 40px; text-align: center;
-}
-.answer-text { font-weight: 500; }
-.answer-text.ans-ok { color: var(--success); font-weight: 700; }
-.answer-text.ans-no { color: var(--danger); font-weight: 700; }
-.answer-explanation {
-  margin-top: 10px; padding-top: 10px;
-  border-top: 1px dashed var(--border-opaque);
-  font-size: 13px; color: var(--text-muted);
-}
+.md-chip .icon { width: 12px; height: 12px; font-size: 12px; }
+.md-chip.is-new      { background: var(--md-neutral-surface); color: var(--md-on-neutral); }  /* 新题 */
+.md-chip.is-learning { background: var(--md-amber-surface);   color: var(--md-amber); }        /* 学习中 */
+.md-chip.is-review   { background: var(--md-judge-pending-surface); color: var(--md-judge-pending); } /* 需复习 */
+.md-chip.is-mastered { background: var(--md-judge-correct-surface); color: var(--md-judge-correct); } /* 已掌握 */
+.md-chip.is-wrong    { background: var(--md-judge-wrong-surface);   color: var(--md-judge-wrong); }   /* 新错 */
+.md-chip.is-solidify { background: var(--md-amber-surface);   color: var(--md-amber); }        /* 巩固中 */
+.md-chip.is-vague    { background: var(--md-judge-pending-surface); color: var(--md-judge-pending); } /* 模糊 */
+.md-chip.is-cleared  { background: var(--md-judge-correct-surface); color: var(--md-judge-correct); } /* 已攻克 */
+.md-chip.is-due      { background: var(--md-amber-surface);   color: var(--md-amber); }        /* 今日到期 */
+.md-chip.is-round    { background: var(--md-surface-sunken);  color: var(--md-text-secondary); } /* 本轮攻克 */
+/* 可点的芯片是控件不是标签：视觉保持 22 档，命中区必须抬到 44（验收硬门槛）。
+   「每日目标 20 题」这一枚是可点的，不抬就是一条 22px 高的触摸目标。 */
+button.md-chip { min-height: var(--md-hit); cursor: pointer; }
+button.md-chip:hover { box-shadow: var(--md-shadow-1), inset 0 0 0 999px rgba(128, 128, 128, .06); }
+button.md-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* 空状态：纯 CSS 伪元素放 Apple SF Symbols 风格 SVG（零 HTML 改动） */
-.empty-hint {
-  text-align: center; color: var(--text-muted);
-  padding: 60px 20px 30px;
-  position: relative;
-  font-size: 14px; line-height: 1.6;
-}
-.empty-hint::before {
-  content: '';
-  display: block; width: 88px; height: 72px;
-  margin: 0 auto 14px;
-  background-repeat: no-repeat; background-position: center;
-  background-size: contain;
-  opacity: 0.5;
-  color: var(--primary);
-  /* 默认 SF Symbols 风格：book（📚 无题目场景） */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 80' fill='none' stroke='%238E8E93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 14h44a8 8 0 018 8v44a4 4 0 00-4-4H24a4 4 0 00-4 4V14z'/><path d='M68 18h8a4 4 0 014 4v40a4 4 0 01-4 4h-8'/><path d='M20 62h56' stroke-dasharray='3 3'/></svg>");
-}
-/* 错题本 / 摸底速览 / 分类考试曾各有专属图标，但选择器写成
-   `section[v-show*="wrongbook"] .empty-hint::before` —— Vue 把 v-show 编译成 style，
-   DOM 里根本没有该属性（实测 querySelectorAll('[v-show]').length === 0），
-   三条规则永不命中，已删。需要按场景区分图标时，请在模板上挂真实类名。 */
-.done-box { text-align: center; padding: 20px; }
-.done-box h2 { color: var(--success); margin: 8px 0; }
-.done-box p { color: var(--text-muted); }
+/* ============ 判分结果标记（§4.3 共享组件的形状线索） ============ */
+/* 规则 1：容器给底色 + 圆角，徽标里只有字形；规则 3：徽标不与容器同色。
+   实际渲染由 .md-judge-badge（横幅内 24×24）与 .md-opt-key（选项上 22×22）承担，
+   这里不再另立一套标记类 —— 同一件事有两套类名就会有两套漂移。 */
 
-/* ============ 摸底速览 ============ */
-.exam-item { background: var(--card-bg); padding: 18px 20px; border-radius: var(--radius); margin-bottom: 14px; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
-.exam-tag { font-size: 12px; color: var(--primary); display: inline-block; background: var(--primary-bg); padding: 2px 8px; border-radius: var(--radius-sm); }
-.exam-meta { font-size: 12px; color: var(--text-muted); margin-left: 6px; }
-.exam-q { font-weight: 500; font-size: 16px; white-space: pre-wrap; margin-top: 8px; }
-.exam-item .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-
-/* ============ 分类考试 ============ */
-.type-select { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
-.type-chip {
-  min-height: 44px; padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 15px; font-family: inherit;
-  background: var(--card-bg); border: 1.5px solid var(--border); color: var(--text-main); transition: all .15s;
-}
-.type-chip:hover { border-color: var(--primary); }
-.type-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.type-chip.on { background: var(--primary); color: var(--on-accent); border-color: var(--primary); }
-.type-chip .cnt { font-size: 12px; opacity: .75; margin-left: 4px; }
-.select-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
-
-/* ============ 作答控件（练习 / 模拟考试 / 分类考试 共用一套） ============
- * iOS 语义：填充底表示「可点」，状态用 边框 + 填充 + 徽标 三重编码，
- * 不只靠颜色（色觉障碍也能分辨）。命名不带页面前缀，因为它跨页面复用。 */
+/* ============ 作答控件（练习 / 考试 / 自测 / 背诵 共用一份实现，§4.2） ============ */
+/* 形状即语义：圆点=单选、方框=多选。22×22。
+   未选/已选/正确/漏选/你选 五档只改底色与描边色，min-height 恒定 → 零位移。 */
 .md-opt-list { display: flex; flex-direction: column; gap: 10px; }
 .md-opt {
-  display: flex; align-items: flex-start; gap: 12px; width: 100%;
+  display: flex; align-items: flex-start; gap: var(--sp-3); width: 100%;
   min-height: 48px; padding: 12px 14px; margin: 0; text-align: left;
-  font-family: inherit; font-size: 15px; line-height: 1.6; color: var(--text-main);
-  background: var(--surface-sub); border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm); cursor: pointer; transition: all .15s;
+  font-family: inherit; font-size: var(--font-lg); line-height: var(--md-lh-option);
+  color: var(--md-text-primary);
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-option);
+  cursor: pointer;
+  transition: background var(--dur-instant) var(--ease-out), border-color var(--dur-instant);
 }
-.md-opt:hover:not(:disabled) { border-color: var(--primary-hover); background: var(--primary-bg); }
+.md-opt:hover:not(:disabled) { background: var(--md-amber-surface); border-color: var(--md-amber); }
 .md-opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-opt:disabled { cursor: default; }
-/* 24px 圆徽标：正好等于 15px × 1.6 的一行文字高度，与首行居中对齐 */
+/* 22×22 标记：单选圆、多选方 —— 由 .is-radio / .is-check 决定，不互换 */
 .md-opt-key {
-  flex-shrink: 0; width: 24px; height: 24px;
+  flex-shrink: 0; width: var(--md-s-box); height: var(--md-s-box);
   display: flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-full); background: var(--fill-primary);
-  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1.5px var(--md-border-strong);
+  background: transparent;
+  font-size: var(--font-xs); font-weight: 700; color: var(--md-text-tertiary);
+  transition: background var(--dur-instant), box-shadow var(--dur-instant), color var(--dur-instant);
 }
-/* 状态层：selected → correct → wrong（交卷后 correct/wrong 覆盖 selected） */
-.md-opt.selected { border-color: var(--primary); background: var(--primary-bg); }
-.md-opt.selected .md-opt-key { background: var(--primary); color: var(--on-accent); }
-.md-opt.correct { border-color: var(--success-border); background: var(--success-bg); }
-.md-opt.correct .md-opt-key { background: var(--success-fill); color: var(--on-accent); }
-.md-opt.wrong { border-color: var(--danger-border); background: var(--danger-bg); }
-.md-opt.wrong .md-opt-key { background: var(--danger-fill); color: var(--on-accent); }
+.md-opt.is-check .md-opt-key { border-radius: var(--md-r-chip); }
+.md-opt-body { min-width: 0; }
+/* 桌面键位徽标（§5.4：移动端放不下，宽屏才补） */
+.md-opt-kbd { display: none; }
 
-/* 判断题：两个等宽大按钮，同一套状态语义 */
-.md-tf { display: flex; gap: 12px; }
-.md-tf-btn {
-  flex: 1; min-height: 48px; padding: 14px 0;
-  font-family: inherit; font-size: 16px; font-weight: 600; color: var(--text-main);
-  background: var(--surface-sub); border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm); cursor: pointer; transition: all .15s;
+/* 状态层：未选 → 已选 → 正确/漏选/你选（交卷后覆盖已选） */
+.md-opt.selected { border-color: var(--md-amber); background: var(--md-amber-surface); }
+.md-opt.selected .md-opt-key { background: var(--md-amber); color: var(--md-amber-on); box-shadow: none; }
+.md-opt.missed  { border-color: var(--md-judge-correct); background: var(--md-judge-correct-surface); }
+.md-opt.missed .md-opt-key { background: var(--md-judge-correct); color: var(--on-accent); box-shadow: none; }
+.md-opt.correct { border-color: var(--md-judge-correct); background: var(--md-judge-correct-surface); }
+.md-opt.correct .md-opt-key { background: var(--md-judge-correct); color: var(--on-accent); box-shadow: none; }
+.md-opt.wrong   { border-color: var(--md-judge-wrong); background: var(--md-judge-wrong-surface); }
+.md-opt.wrong .md-opt-key { background: var(--md-judge-wrong); color: var(--on-accent); box-shadow: none; }
+/* 每条选项右侧的判定文字（正确/漏选/你选）= 非颜色线索（§2.4） */
+.md-opt-flag {
+  margin-left: auto; flex-shrink: 0; align-self: center;
+  font-size: var(--font-xs); font-weight: 600; white-space: nowrap;
 }
-.md-tf-btn:hover:not(:disabled) { border-color: var(--primary-hover); background: var(--primary-bg); }
+.md-opt.correct .md-opt-flag { color: var(--md-judge-correct); }
+.md-opt.missed  .md-opt-flag { color: var(--md-judge-correct); }
+.md-opt.wrong   .md-opt-flag { color: var(--md-judge-wrong); }
+
+/* 判断题：两个大按钮（高 88）。§4.2：不用开关——开关暗示状态，作答是动作 */
+.md-tf { display: flex; gap: var(--sp-3); }
+.md-tf-btn {
+  flex: 1; min-height: var(--md-h-tf-btn);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  font-family: inherit; font-size: var(--font-lg); line-height: var(--md-lh-option);
+  font-weight: 600; color: var(--md-text-primary);
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-r-option); cursor: pointer;
+  transition: background var(--dur-instant) var(--ease-out), border-color var(--dur-instant);
+}
+.md-tf-btn:hover:not(:disabled) { background: var(--md-amber-surface); border-color: var(--md-amber); }
 .md-tf-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-tf-btn:disabled { cursor: default; }
-.md-tf-btn.selected { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
-.md-tf-btn.correct { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
-.md-tf-btn.wrong { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+.md-tf-btn.selected { border-color: var(--md-amber); background: var(--md-amber-surface); color: var(--md-amber); }
+.md-tf-btn.correct  { border-color: var(--md-judge-correct); background: var(--md-judge-correct-surface); color: var(--md-judge-correct); }
+.md-tf-btn.wrong    { border-color: var(--md-judge-wrong); background: var(--md-judge-wrong-surface); color: var(--md-judge-wrong); }
+.md-tf-btn .icon { width: 20px; height: 20px; font-size: 20px; }
 
-/* 判分反馈条：图标 + 文案，边框用 semantic-border 而非同色填充 */
-.md-feedback {
-  display: flex; gap: 12px; align-items: center;
-  margin-top: 14px; padding: 14px 16px;
-  border-radius: var(--radius-sm); font-size: 14px;
+/* ============ 判分横幅（§4.1：圆角 14、24×24 徽标 + 结论文字） ============ */
+/* 判断/单选/多选共用同一个组件（§4.3），五种题型不得各写一套结果展示 */
+.md-judge-banner {
+  display: flex; gap: var(--sp-3); align-items: flex-start;
+  margin-top: var(--sp-4); padding: 14px var(--sp-4);
+  border-radius: 14px; font-size: var(--font-base); line-height: var(--md-lh-body);
 }
-.md-feedback.ok { background: var(--success-bg); border: 1px solid var(--success-border); }
-.md-feedback.no { background: var(--danger-bg); border: 1px solid var(--danger-border); }
-.md-feedback-icon { font-size: 22px; }
-/* 换成矢量图标后终于可以跟着判定走色了（emoji 是彩色字形，染不了） */
-.md-feedback.ok .md-feedback-icon { color: var(--success); }
-.md-feedback.no .md-feedback-icon { color: var(--danger); }
-.md-feedback-text { color: var(--text-main); }
-.md-feedback-text b { color: var(--primary); }
+.md-judge-badge {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.md-judge-badge .icon { width: 15px; height: 15px; font-size: 15px; stroke-width: 2.6; margin-right: 0; }
+.md-judge-title { font-weight: 700; font-size: var(--font-lg); line-height: var(--md-lh-option); }
+.md-judge-note { font-size: var(--font-sm); line-height: var(--md-lh-meta); margin-top: 2px; }
+.md-judge-banner.is-right { background: var(--md-judge-correct-surface); }
+.md-judge-banner.is-right .md-judge-badge { background: var(--md-judge-correct); color: var(--on-accent); }
+.md-judge-banner.is-right .md-judge-title { color: var(--md-judge-correct); }
+.md-judge-banner.is-wrong { background: var(--md-judge-wrong-surface); }
+.md-judge-banner.is-wrong .md-judge-badge { background: var(--md-judge-wrong); color: var(--on-accent); }
+.md-judge-banner.is-wrong .md-judge-title { color: var(--md-judge-wrong); }
+.md-judge-banner.is-pending { background: var(--md-judge-pending-surface); }
+.md-judge-banner.is-pending .md-judge-badge { background: var(--md-judge-pending); color: var(--on-accent); }
+.md-judge-banner.is-pending .md-judge-title { color: var(--md-judge-pending); }
+.md-judge-banner .md-judge-title, .md-judge-banner .md-judge-note { color: var(--md-text-primary); }
+.md-judge-banner.is-right  .md-judge-title { color: var(--md-judge-correct); }
+.md-judge-banner.is-wrong  .md-judge-title { color: var(--md-judge-wrong); }
+.md-judge-banner.is-pending .md-judge-title { color: var(--md-judge-pending); }
+/* 「已计入 / 未计入正确率」这类口径跟着横幅走，永远不缺席（§7.2） */
+.md-judge-caliber {
+  display: block; font-size: var(--font-sm); line-height: var(--md-lh-meta);
+  color: var(--md-text-tertiary);
+}
 
-/* 文本输入：作答（填空 / 简答）与手动录题表单共用一份实现 */
-.md-field {
-  width: 100%; min-height: 48px; padding: 12px 14px;
-  font-family: inherit; font-size: 15px; line-height: 1.5; color: var(--text-main);
-  background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm); box-shadow: var(--shadow-input); outline: none;
-  transition: border-color .15s, box-shadow var(--dur-fast) var(--ease-out), background var(--dur-fast);
+/* ============ 统计三联格（§4.1：圆角 10、数字 19–20 + 标签 11，数字变化 200ms 滚动） ============ */
+.md-triplet { display: flex; gap: var(--sp-2); }
+.md-triplet-cell {
+  flex: 1 1 0; min-width: 0;
+  background: var(--md-surface-sunken);
+  border-radius: 10px;
+  padding: 10px var(--sp-2);
+  text-align: center;
 }
-.md-field:hover:not(:disabled) { border-color: var(--border-opaque); }
-.md-field:focus { border-color: var(--primary); box-shadow: var(--shadow-input-focus); }
-.md-field:disabled { background: var(--surface-sub); color: var(--text-disabled); cursor: not-allowed; box-shadow: none; }
-textarea.md-field { resize: vertical; }
-.md-field.tall { min-height: 120px; }
+.md-triplet-num {
+  font-family: var(--md-font-num); font-variant-numeric: tabular-nums;
+  font-size: var(--font-2xl); line-height: 1.2; font-weight: 700;
+  color: var(--md-text-primary);
+  transition: color var(--dur-base) var(--ease-out);
+}
+.md-triplet-num.ok  { color: var(--md-judge-correct); }
+.md-triplet-num.no  { color: var(--md-judge-wrong); }
+.md-triplet-num.pend { color: var(--md-judge-pending); }
+.md-triplet-lbl { font-size: var(--font-xs); line-height: 1.3; color: var(--md-text-tertiary); margin-top: 2px; }
+/* 数字滚动：只做一次 200ms 的琥珀脉冲，不做常驻动效（§8 reduced-motion 会关掉它） */
+@keyframes mdNumPulse {
+  0% { transform: translateY(3px); opacity: .4; }
+  100% { transform: none; opacity: 1; }
+}
+.md-triplet-num.is-rolling { animation: mdNumPulse var(--dur-base) var(--ease-out); }
 
-.cat-type-select { min-height: 44px; padding: 6px 10px; border: 1px solid var(--border-sub); border-radius: var(--radius-sm); font-size: 15px; font-family: inherit; background: var(--surface); color: var(--text-main); box-shadow: var(--shadow-input); }
+/* ============ 口径说明条（§4.1：常显、不可省；§7.2 六条口径） ============ */
+.md-caliber {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  background: var(--md-surface-sunken);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: var(--font-sm); line-height: var(--md-lh-meta);
+  color: var(--md-text-secondary);
+  margin-top: var(--sp-2);
+}
+.md-caliber .icon { width: 14px; height: 14px; font-size: 14px; margin-top: 2px; color: var(--md-text-tertiary); }
+.md-caliber b { color: var(--md-text-primary); font-weight: 600; }
 
-.score-board { display: flex; gap: 14px; justify-content: center; margin: 18px 0; flex-wrap: wrap; }
-.score-card { flex: 1; min-width: 110px; max-width: 180px; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
-.score-card .num { font-size: 30px; font-weight: 700; }
-.score-card .num.ok { color: var(--success); }
-.score-card .num.no { color: var(--danger); }
-.score-card .lbl { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+/* ============ 恢复提示卡（§4.1：琥珀底面、圆角 16、三段式 图标/文本/按钮） ============ */
+.md-resume-card {
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: var(--md-amber-surface);
+  border-radius: var(--md-r-card);
+  padding: 12px 14px;
+  margin-bottom: var(--sp-4);
+}
+.md-resume-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--md-r-chip);
+  background: var(--md-amber); color: var(--md-amber-on);
+  flex-shrink: 0;
+}
+.md-resume-icon .icon { width: 17px; height: 17px; font-size: 17px; margin-right: 0; }
+.md-resume-body { flex: 1 1 auto; min-width: 0; }
+.md-resume-title { font-size: var(--font-base); line-height: var(--md-lh-body); font-weight: 600; color: var(--md-text-primary); }
+/* §7.5：恢复点显示「何时留下」——时间戳已进数据层，界面呈现 */
+.md-resume-when { font-size: var(--font-sm); line-height: var(--md-lh-meta); color: var(--md-amber); }
+.md-resume-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
+.md-resume-close {
+  display: flex; align-items: center; justify-content: center;
+  width: var(--md-hit); height: var(--md-hit);
+  border: none; border-radius: var(--radius-full);
+  background: transparent; color: var(--md-text-secondary); cursor: pointer;
+}
+.md-resume-close:hover { background: var(--md-amber-tint); }
+.md-resume-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* ============ 错题本 ============ */
-.wb-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
-.wb-tabs button {
-  min-height: 40px; padding: 7px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; font-family: inherit;
-  background: var(--card-bg); border: 1.5px solid var(--border); color: var(--text-muted); transition: all .15s;
+/* ============ 错题条目（§4.1：最小高 88、题干 2 行截断 + 展开） ============ */
+.wb-item {
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-card);
+  padding: 14px 16px;
+  margin-bottom: var(--sp-3);
+  min-height: var(--md-h-wb-item);
+  box-shadow: var(--md-shadow-1);
 }
-.wb-tabs button.on { background: var(--primary); color: var(--on-accent); border-color: var(--primary); }
-/* v2：错题本状态面板 */
-.wb-status-bar {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  margin: 8px 0 0; padding: 10px 14px;
-  background: var(--warn-bg); border: 1px solid var(--warn-bg); border-radius: var(--radius-sm);
+.wb-item-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.wb-q {
+  font-size: var(--font-base); line-height: var(--md-lh-body); color: var(--md-text-primary);
+  margin-top: var(--sp-2);
+  /* 2 行截断；压力由「展开」承担，不截语义（§4.1） */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.wb-status-chip {
-  font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);
-  font-weight: 600; white-space: nowrap;
+.wb-q.is-open { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.wb-expand {
+  align-self: flex-start; margin-top: 2px;
+  background: transparent; border: none; cursor: pointer; font-family: inherit;
+  color: var(--md-amber); font-size: var(--font-sm); padding: 4px 0; min-height: 28px;
 }
-.wb-status-chip.new { background: var(--danger-bg); color: var(--danger); }
-.wb-status-chip.learning { background: var(--primary-bg); color: var(--primary); }
-.wb-status-chip.weak { background: var(--warn-bg); color: var(--warn); }
-.wb-status-chip.mastered { background: var(--success-bg); color: var(--success); }
-.wb-status-chip.small { font-size: 11px; padding: 1px 7px; }
-.wb-status-hint {
-  margin-left: auto; font-size: 11px; color: var(--text-muted);
-}
-.wb-item-stats {
-  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
-}
-.wb-err-count { font-size: 11px; color: var(--danger); font-weight: 500; }
-.wb-streak { font-size: 11px; color: var(--success); font-weight: 600; }
-
-.wb-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 12px; }
-/* 错题本页删掉了重复的 <h3>错题本</h3>（应用栏已经报过），头部只剩右侧的「清空全部」 */
+.wb-expand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--md-r-chip); }
+.wb-item-stats { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.wb-err-count { font-size: var(--font-xs); color: var(--md-judge-wrong); font-weight: 600; }
+.wb-streak { font-size: var(--font-xs); color: var(--md-judge-correct); font-weight: 600; }
 .wb-head { justify-content: flex-end; }
-.wb-item .src-tag { font-size: 12px; padding: 2px 8px; border-radius: var(--radius-sm); font-weight: 600; }
-.wb-item .src-tag.study { background: var(--success-bg); color: var(--success); }
-.wb-item .src-tag.exercise { background: var(--info-bg); color: var(--info); }
-.wb-item .src-tag.practice { background: var(--primary-bg); color: var(--primary); }
-.wb-item .src-tag.preview { background: var(--warn-bg); color: var(--warn); }
-.wb-item .src-tag.exam { background: var(--danger-bg); color: var(--danger); }
+.wb-item .src-tag {
+  font-size: var(--font-sm); padding: 2px 8px; border-radius: var(--md-r-chip);
+  font-weight: 600; background: var(--md-surface-sunken); color: var(--md-text-secondary);
+}
+/* 错题离开原因（§7.4.1：移出时必须告知原因） */
+.wb-reason { font-size: var(--font-sm); color: var(--md-text-tertiary); margin-top: 4px; }
 
-/* ============ 弹窗（AI 提示词） ============ */
+/* ============ 答案区（背诵/浏览/待自评共用） ============ */
+.answer-box {
+  font-size: var(--font-base); line-height: var(--md-lh-body);
+  padding: 14px var(--sp-4);
+  background: var(--md-judge-correct-surface);
+  border-radius: var(--md-r-option);
+  margin-top: 4px;
+}
+.answer-title { font-weight: 700; color: var(--md-judge-correct); margin-bottom: 10px; font-size: var(--font-md); }
+.answer-item {
+  display: flex; align-items: center; margin: 8px 0;
+  background: var(--md-surface); padding: 10px 14px;
+  border-radius: var(--md-r-option);
+  box-shadow: var(--shadow-input);
+}
+.answer-index {
+  background: var(--md-judge-correct-surface); color: var(--md-judge-correct);
+  padding: 2px 10px; border-radius: var(--md-r-chip);
+  font-weight: 600; font-size: var(--font-md); margin-right: 12px;
+  min-width: 40px; text-align: center;
+}
+/* 专项题序号改蓝（§4.2：复用 FillBlank，只让序号色区分） */
+.is-special .answer-index, .md-blank.is-special .md-blank-index {
+  background: var(--md-judge-pending-surface); color: var(--md-judge-pending);
+}
+.answer-text { font-weight: 500; color: var(--md-text-primary); }
+.answer-text.ans-ok { color: var(--md-judge-correct); font-weight: 700; }
+.answer-text.ans-no { color: var(--md-judge-wrong); font-weight: 700; }
+.answer-explanation {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--md-border);
+  font-size: var(--font-base); line-height: var(--md-lh-body); color: var(--md-text-secondary);
+}
+/* 「凡带选项的题，选项文本与答案必须同屏可见」（§4.2） */
+.answer-options { margin-top: 10px; }
+.answer-option {
+  display: flex; gap: var(--sp-2); align-items: baseline;
+  font-size: var(--font-base); line-height: var(--md-lh-body); color: var(--md-text-secondary);
+}
+.answer-option.is-std { color: var(--md-text-primary); font-weight: 600; }
+.answer-option .k { font-family: var(--md-font-num); min-width: 18px; color: var(--md-text-tertiary); }
+
+/* 未知题型兜底（§4.2 DefaultRenderer：原始字段原样展示，不解析） */
+.md-unknown-box {
+  background: var(--md-surface-sunken); border-radius: var(--md-r-option);
+  padding: 12px 14px; font-size: var(--font-sm); color: var(--md-text-secondary);
+}
+.md-unknown-box pre {
+  margin: 6px 0 0; font-family: var(--font-mono); font-size: var(--font-xs);
+  white-space: pre-wrap; word-break: break-all; color: var(--md-text-primary);
+}
+
+/* ============ 填空题逐空输入（§4.2 决策：放弃单输入 + 手写竖线分隔） ============ */
+.md-blank-list { display: flex; flex-direction: column; gap: 10px; }
+.md-blank-row { display: flex; align-items: center; gap: 10px; }
+.md-blank-index {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: var(--md-r-chip); flex-shrink: 0;
+  background: var(--md-amber-surface); color: var(--md-amber);
+  font-family: var(--md-font-num); font-size: var(--font-xs); font-weight: 700;
+}
+.md-blank-row input { flex: 1 1 auto; min-width: 0; }
+/* 题干里的 ____ 渲染为下划线占位块（§4.2），不出现分隔符 */
+.md-blank-slot {
+  display: inline-block; min-width: 56px; height: 1em;
+  border-bottom: 2px solid var(--md-border-strong);
+  vertical-align: baseline; margin: 0 2px;
+}
+.md-blank-slot.is-filled { border-bottom-color: var(--md-amber); }
+.md-blank-meta { font-size: var(--font-sm); color: var(--md-text-tertiary); margin-top: 6px; }
+
+/* ============ 自评按钮（§4.4 已自评对/错） ============ */
+.md-self-judge { display: flex; gap: var(--sp-3); margin-top: var(--sp-3); flex-wrap: wrap; }
+.md-self-btn {
+  flex: 1 1 140px; min-height: var(--md-h-btn-second);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  font-family: inherit; font-size: var(--font-lg); font-weight: 600; cursor: pointer;
+  background: var(--md-surface); color: var(--md-text-primary);
+  border: 1px solid var(--md-border-strong); border-radius: 22px;
+  transition: background var(--dur-instant), border-color var(--dur-instant), color var(--dur-instant);
+}
+.md-self-btn:hover { background: var(--md-surface-sunken); }
+.md-self-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.md-self-btn.ok.is-picked  { background: var(--md-judge-correct); color: var(--on-accent); border-color: var(--md-judge-correct); }
+.md-self-btn.no.is-picked  { background: var(--md-judge-wrong);   color: var(--on-accent); border-color: var(--md-judge-wrong); }
+.md-self-label { font-size: var(--font-sm); color: var(--md-text-tertiary); width: 100%; }
+
+/* ============ 文本输入（作答 / 问答 / 手动录题 共用一份实现） ============ */
+.md-field {
+  width: 100%; min-height: var(--md-hit); padding: 12px 14px;
+  font-family: inherit;
+  font-size: 16px; line-height: var(--md-lh-body);   /* ≥16px 防 iOS 缩放（§5.5） */
+  color: var(--md-text-primary);
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-r-option); box-shadow: var(--shadow-input); outline: none;
+  transition: border-color var(--dur-instant), box-shadow var(--dur-instant) var(--ease-out);
+}
+.md-field:hover:not(:disabled) { border-color: var(--md-border-strong); }
+.md-field:focus { border-color: var(--md-amber); box-shadow: var(--shadow-input-focus); }
+.md-field:disabled { background: var(--md-surface-sunken); color: var(--md-text-disabled); cursor: not-allowed; box-shadow: none; }
+textarea.md-field { resize: vertical; line-height: var(--md-lh-body); }
+.md-field.tall { min-height: 120px; }
+/* 问答题字数计数（§4.2） */
+.md-field-count { font-size: var(--font-sm); color: var(--md-text-tertiary); text-align: right; margin-top: 4px; font-family: var(--md-font-num); }
+
+.cat-type-select { min-height: var(--md-hit); padding: 6px 10px; border: 1px solid var(--md-border); border-radius: var(--md-r-option); font-size: var(--font-lg); font-family: inherit; background: var(--md-surface); color: var(--md-text-primary); box-shadow: var(--shadow-input); }
+
+/* ============ 成绩卡 / 分数板 ============ */
+.score-board { display: flex; gap: 14px; justify-content: center; margin: 18px 0; flex-wrap: wrap; }
+.score-card { flex: 1; min-width: 110px; max-width: 180px; background: var(--md-surface); border: 1px solid var(--md-border); border-radius: var(--md-r-card); padding: var(--sp-4); text-align: center; }
+.score-card .num { font-family: var(--md-font-num); font-size: var(--font-3xl); font-weight: 700; color: var(--md-text-primary); }
+.score-card .num.ok { color: var(--md-judge-correct); }
+.score-card .num.no { color: var(--md-judge-wrong); }
+.score-card .lbl { font-size: var(--font-md); color: var(--md-text-tertiary); margin-top: 4px; }
+
+/* ============ 空状态 ============ */
+.empty-hint {
+  text-align: center; color: var(--md-text-secondary);
+  padding: 60px 20px 30px;
+  font-size: var(--font-base); line-height: var(--md-lh-body);
+}
+.empty-svg { width: 120px; height: 100px; color: var(--md-neutral); display: block; margin: 0 auto var(--sp-4); }
+/* 2.x 这里曾有 3 条按 section 区分空状态图标的规则，选择器写成属性匹配，
+   Vue 把 v-show 编译成 style、DOM 里没有该属性，三条永不命中——已删。
+   需要按场景区分图标时，请在模板上挂真实类名。 */
+.done-box { text-align: center; padding: var(--sp-5); }
+.done-box h2 { color: var(--md-judge-correct); margin: 8px 0; }
+.done-box p { color: var(--md-text-secondary); }
+
+/* ============ 浏览速览（只读、不判分、不写进度，§5.1） ============ */
+.exam-item { background: var(--md-surface); padding: 18px 20px; border-radius: var(--md-r-card); margin-bottom: 14px; border: 1px solid var(--md-border); box-shadow: var(--md-shadow-1); }
+.exam-tag { font-size: var(--font-sm); color: var(--md-text-secondary); display: inline-block; background: var(--md-surface-sunken); padding: 2px 8px; border-radius: var(--md-r-chip); }
+.exam-meta { font-size: var(--font-sm); color: var(--md-text-tertiary); margin-left: 6px; }
+.exam-q { font-weight: 500; font-size: var(--font-lg); line-height: var(--md-lh-option); white-space: pre-wrap; margin-top: 8px; color: var(--md-text-primary); }
+.exam-item .btn-row { display: flex; gap: var(--sp-2); margin-top: 12px; flex-wrap: wrap; }
+
+/* ============ 题型筛选芯片（按题型自测） ============ */
+.type-select { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.type-chip {
+  min-height: var(--md-hit); padding: 8px 16px; border-radius: 22px; cursor: pointer;
+  font-size: var(--font-lg); font-family: inherit;
+  background: var(--md-surface); border: 1px solid var(--md-border-strong); color: var(--md-text-primary);
+  transition: background var(--dur-instant), border-color var(--dur-instant);
+}
+.type-chip:hover { border-color: var(--md-amber); }
+.type-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.type-chip.on { background: var(--md-ink); color: var(--md-ink-on); border-color: var(--md-ink); }
+.type-chip .cnt { font-family: var(--md-font-num); font-size: var(--font-sm); opacity: .7; margin-left: 4px; }
+.select-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+
+/* ============ 弹窗（AI 提示词 / 交卷确认） ============ */
 .modal-mask {
   position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
-  padding: 16px; background: rgba(20, 31, 45, 0.45); animation: modalFade .18s ease-out;
+  padding: var(--sp-4); background: rgba(20, 18, 16, 0.45); animation: modalFade .18s var(--ease-out);
 }
 .modal-box {
   width: 100%; max-width: 640px; max-height: 88vh; overflow: auto;
-  background: var(--card-bg); border-radius: var(--radius-sm); padding: 18px 20px 14px;
-  box-shadow: var(--shadow-modal); border: 1px solid var(--border);
+  background: var(--md-surface); border-radius: var(--md-r-sheet); padding: 18px 20px 14px;
+  box-shadow: var(--md-shadow-3); border: 1px solid var(--md-border);
 }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.modal-head h3 { font-size: 18px; }
+.modal-head h3 { font-size: var(--font-xl); margin: 0; color: var(--md-text-primary); }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 textarea.ai-prompt {
-  width: 100%; min-height: 300px; padding: 12px 14px; border: 1px solid var(--border-sub); border-radius: var(--radius-sm);
-  font-size: 13px; font-family: "SF Mono", Consolas, monospace; resize: vertical; background: var(--surface-sub); color: var(--text-main);
+  width: 100%; min-height: 300px; padding: 12px 14px; border: 1px solid var(--md-border); border-radius: var(--md-r-option);
+  font-size: var(--font-md); font-family: var(--font-mono); resize: vertical;
+  background: var(--md-surface-sunken); color: var(--md-text-primary);
 }
-textarea.ai-prompt:focus-visible { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+textarea.ai-prompt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @keyframes modalFade {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ============ 答题输入工具行 ============ */
-.insert-sep-row {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; min-height: 28px;
-}
-
 /* ============ Toast ============ */
 .toast {
-  position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  background: var(--primary); color: var(--on-accent); padding: 12px 20px; border-radius: var(--radius-sm); font-size: 14px;
-  box-shadow: var(--shadow-popover); z-index: 100; max-width: 90vw;
+  position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px) + var(--nav-h));
+  transform: translateX(-50%);
+  background: var(--md-ink); color: var(--md-ink-on);
+  padding: 12px 20px; border-radius: var(--md-r-pill);
+  font-size: var(--font-base); line-height: var(--md-lh-body);
+  box-shadow: var(--md-shadow-3); z-index: 100; max-width: 90vw;
 }
-.toast.err { background: var(--danger-fill); }
+.toast.err { background: var(--md-judge-wrong); color: var(--on-accent); }
+
+/* ============ 底部固定操作区（§5.5） ============ */
+/* padding-bottom = 20 + env(safe-area-inset-bottom)；用 1px 顶部描边而非阴影 */
+.md-actionbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: var(--md-surface);
+  border-top: 1px solid var(--md-border);
+  padding: var(--sp-3) var(--md-page-pad) calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.md-actionbar .btn { flex: 1 1 auto; }
+.md-actionbar.above-tabbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
+
+/* ============ 折叠屏形态标识（§8） ============ */
+.md-form-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 8px; border-radius: 10px;
+  background: var(--md-surface-sunken); color: var(--md-text-tertiary);
+  font-size: var(--font-xs); font-weight: 600;
+}
+/* 「折叠后仍可继续作答，进度自动保留」：首次折叠滑入，3 秒自动消失 */
+.md-form-toast {
+  display: flex; align-items: center; gap: var(--sp-2);
+  background: var(--md-amber-surface); color: var(--md-text-primary);
+  border-radius: var(--md-r-pill); padding: 8px 14px;
+  font-size: var(--font-sm); line-height: var(--md-lh-meta);
+  margin-bottom: var(--sp-3);
+  animation: mdFormIn var(--dur-base) var(--ease-out);
+}
+@keyframes mdFormIn { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ============ 快捷键面板（§5.4：仅桌面常驻侧栏底部） ============ */
+.md-hotkeys { display: none; }
+.md-hotkeys dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 6px 10px; align-items: center; }
+.md-hotkeys dt { font-size: var(--font-sm); color: var(--md-text-secondary); }
+.md-hotkeys dd {
+  margin: 0; justify-self: end;
+  font-family: var(--md-font-num); font-size: var(--font-xs);
+  padding: 2px 7px; border-radius: var(--md-r-chip);
+  background: var(--md-surface-sunken); color: var(--md-text-primary);
+  box-shadow: var(--shadow-input);
+}
+
+/* 键位徽标只有一处实现：.md-opt-kbd（见上）与 1024+ 的 .md-hotkeys 面板。
+   原先这里还有一份 .md-kbd，模板从不引用——同一件事留两个类名必然漂移，已删。 */

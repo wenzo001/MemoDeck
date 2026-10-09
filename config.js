@@ -33,9 +33,11 @@ window.EXAM_CONFIG = {
   /** MemoDeck 应用版本 — 语义化 SemVer，也是 SW 缓存命名空间
       ⚠️ 必须与 index.html 的 <meta name="version"> 和 service-worker.js 的 VERSION
          完全一致；CI 的「版本号三处一致」检查会拦住不同步的提交。 */
-  APP_VERSION: '2.2.0',
-  /** 备份文件 schema 版本 — 用于导出/导入时判断是否需要迁移 */
-  BACKUP_VERSION: '2.0',
+  APP_VERSION: '3.0.0',
+  /** 备份文件 schema 版本 — 用于导出/导入时判断是否需要迁移
+     3.0 的备份里多了「每日目标」「错题移出留痕」两块数据；
+     导入路径对 2.0 的备份继续兼容（见 js/backup.js 的 normalizeBackup）。 */
+  BACKUP_VERSION: '3.0',
   /** 题库 JSON (exam-bank) 格式版本 — ai-prompt.js / FALLBACK_RULES / app.js 自动读取
      已有题库数据文件（default-bank.js / history-example.json）保持各自 viewVersion 不变 */
   VIEW_VERSION: '1.0.0'

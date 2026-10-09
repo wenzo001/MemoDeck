@@ -1,57 +1,105 @@
 /* ============================================================
- * MemoDeck · Responsive
- * Mobile breakpoints
+ * MemoDeck 3.0 · Responsive（DESIGN.md §5.3 七档断点 + §8 响应式行为）
+ *
+ * 这一层的唯一职责：把 §5.3 那张断点表翻译成 --md-* 布局 token 的取值，
+ * 组件与页面只读 token，不各写各的 @media。
+ * 例外只有两处确实无法用 token 表达的（导航 3 栏 / 2×2 网格 / 元信息显隐），
+ * 都在本文件末尾集中处理。
+ *
+ * | 断点        | 导航           | 内容布局                                   |
+ * | 320–359    | 底部 3 栏      | 单列；内边距 16；四档降 2×2；隐藏次要元信息 |
+ * | 360–429    | 底部 4 栏      | 同上，内边距 18                             |
+ * | 430–559    | 底部 4 栏      | 标准单列，内边距 20；形态切换提示条          |
+ * | 560–767    | 左侧栏 200     | 单列，题面与选项上下排列                     |
+ * | 768–1023   | 左侧栏 200     | 双栏：题面栏 328 固定 + 本题历史卡片          |
+ * | 1024–1439  | 左侧栏 232     | 双栏：题面栏 480；字段宽 ≤680                |
+ * | 1440+      | 左侧栏 232     | 同 1024；内容区不再加宽                       |
  * ============================================================ */
 
-/* ============ 响应式 ============ */
-@media (max-width: 600px) {
-  /* 留白：屏幕边距只由 #app 的 --layout-gutter(16px) 负责。
-     原来这里又给 body 叠了 `14px 12px 50px`，于是单侧 = 12 + 16 = 28px，
-     再加卡片自己的 20px 内边距，正文离屏幕边 48px ≈ 390 宽度的 12.3%（两侧吃掉 24.6%），
-     而 iOS 分组列表的标准是 16 + 16 = 32px。顺带这条覆盖还把 tokens 里
-     `body { padding-bottom: env(safe-area-inset-bottom) }` 一起抹掉了。 */
-  body { font-size: 15px; }
-  /* 卡片内边距收到 16，让「屏幕边 → 正文」正好 32px */
-  .md-home-card, .panel, .md-study-group, .wb-item,
-  .md-study-resume, .md-study-summary { padding-left: 16px; padding-right: 16px; }
-  .md-home { gap: 12px; }
-  .appchrome { margin-bottom: 12px; }
-  .card { padding: 26px 18px 20px; min-height: 230px; }
-  .question { font-size: 17px; }
-  .btn-group { gap: 10px; }
-  .src-actions input[type="text"] { min-width: 100%; }
-  /* 触摸目标 ≥44px（见 ARCHITECTURE.md §六 样式约定）；同时改横向滚动为单行，
-     否则 8 个 Tab 按 flex 1 1 40% 会折成 4 行、把手机首屏吃掉一大截 */
-  .tab-nav {
-    flex-wrap: nowrap; gap: 4px;
-    /* 基线的 justify-content:center 在 nowrap + 溢出时会让内容向两侧均分溢出，
-       左侧那段滚不回去（实测第一个 tab 落在 left:-184.6px）→ 首尾都被切。
-       横向滚动容器必须回到 flex-start。 */
-    justify-content: flex-start;
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    scroll-padding-inline: 4px;
-  }
-  .tab-nav::-webkit-scrollbar { display: none; }
-  .tab-nav button {
-    flex: 0 0 auto; min-height: 44px;
-    padding: 10px 14px; font-size: 14px;
-  }
-  /* 触摸目标 ≥ 44×44pt（iOS HIG）。桌面用指针可以更小，所以只在移动端补偿，
-     与上面的 .tab-nav button 同一套做法。 */
-  .btn.small, .btn-text, .wb-tabs button,
-  .md-study-per .per-chip, .icon-btn { min-height: 44px; }
-  .icon-btn { width: 44px; }
-  /* 主题切换三枚分段同样要够 44pt（原来只有 28px，是漏网的旧账）。
-     ⚠️ 必须写成 `.theme-switch .theme-btn`（0,2,0）：加载顺序是 tokens → components →
-     pages → responsive → **themes**，themes.css 里的 `.theme-btn` 同特异度但更晚出现，
-     会把本文件的覆盖吃掉（实测写 `.theme-btn` 时移动端仍是 28×28）。
-     断点出口不是最后一份 CSS，跨文件覆盖主题层规则就得抬一档特异度。 */
-  .theme-switch .theme-btn { width: 44px; height: 44px; }
+/* —— 水平内边距：从宽到窄逐档收窄，靠书写顺序决胜（媒体查询没有特异度）。
+   默认 20 在 tokens.css 的 :root 里，这里只写「比默认更窄」的两档。 */
+@media (max-width: 429px) { :root { --md-page-pad: 18px; } }
 
-  /* 作答控件紧凑档（共享组件，见 components.css） */
-  .md-opt { font-size: 14px; gap: 10px; min-height: 46px; }
-  .md-opt-key { width: 22px; height: 22px; font-size: 12px; }
-  .md-tf-btn { font-size: 14px; padding: 14px 0; }
+/* —— 320–359：本设计唯一牺牲一级导航直达性的地方 ——
+   4 栏横排后每栏仅 72px，低于 44pt 舒适区（需 ≥88px），因此收为
+   今日 / 练习 / 更多 三栏，错题本与题库进「更多」（见 app.js navItems）。 */
+@media (max-width: 359px) {
+  :root { --md-page-pad: 16px; }
+  /* 四档由 4 列降 2×2 */
+  .md-fours, .md-home-stats .md-home-stats-grid, .md-study-summary-grid { grid-template-columns: repeat(2, 1fr); }
+  /* 隐藏「预计用时」等次要元信息 —— 压力由隐藏元信息承担，题干选项绝不缩字 */
+  .md-hide-narrow, .md-study-timer, .md-home-est { display: none !important; }
 }
+
+/* —— 430–559（折叠屏折叠态）：标准单列 ——
+   顶部形态切换提示条与底部固定操作区都不可省（模板里常驻，这里只给间距）。 */
+@media (max-width: 559px) {
+  #app { padding-bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* 形态标识只对「有可能是折叠屏」的宽度有意义：320/360 是直板机，
+   报一个「折叠 · 单栏」只会让人以为界面出了问题。§8 的压力规则：先丢次要元信息。 */
+@media (max-width: 429px) {
+  .md-form-badge { display: none; }
+}
+/* 来源标识在 <560 从应用栏让位：它属于元信息，且「题库」页第一屏就报同一个数。
+   留着会让主题切换被挤到第二行，应用栏读起来像断成了两层。 */
+@media (max-width: 559px) {
+  .appbar-lead .src-badge { display: none; }
+}
+
+/* —— 560–767：导航形态从底部切到左侧栏 200 —— */
+@media (min-width: 560px) and (max-width: 767px) {
+  :root { --md-sidebar-w: 200px; }
+  #app { padding-bottom: 120px; }
+}
+
+/* —— 768–1023：左侧栏 200 + 双栏，题面栏 328 固定 ——
+   题面栏内额外承载「本题历史」卡片（移动端放不下）。
+   外壳不再收在 960：960 管正文行长，不是整页宽度；收在 960 会让作答栏只剩 152px。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root { --md-sidebar-w: 200px; --md-pane-question: 328px; }
+  #app { max-width: none; padding-bottom: 132px; }
+  .md-shell { max-width: 1040px; margin: 0 auto; }
+}
+
+/* —— 1024–1439：左侧栏 232 + 双栏，题面栏 480 ——
+   选项区限宽；字段宽度铺满但不超 680。
+   ⚠️ 外壳必须比「960 行长上限」宽：#app 若仍收在 960，
+   960 − 232 侧栏 − 24 间距 − 480 题面栏 − 24 折痕安全边 = 只剩 160px 给作答栏，
+   远低于设计稿写明的「平板 240px 作答栏为最窄约束」。
+   960 管的是正文行长，不是整页宽度。 */
+@media (min-width: 1024px) {
+  :root { --md-sidebar-w: 232px; --md-pane-question: 480px; }
+  #app { max-width: none; }
+  .md-shell { max-width: 1200px; margin: 0 auto; }
+}
+
+/* —— 1440+：同 1024，内容区不再加宽（避免行长超 960） —— */
+@media (min-width: 1440px) {
+  :root { --md-sidebar-w: 232px; --md-pane-question: 480px; }
+  #app { max-width: none; }
+  .md-shell { max-width: 1200px; margin: 0 auto; }
+}
+
+/* ============================================================
+ * 折叠屏专项（§8）
+ *
+ * 折痕区不承载任何可交互元素：题面栏右缘的 ≥24px 安全边在 pages.css 里，
+ * 这里负责「展开 / 折叠」两种形态都能用。
+ * ============================================================ */
+/* 形态切换提示条只在 430–559（折叠态）与宽屏往返时出现，位置置顶 */
+.md-form-slot { display: none; }
+@media (min-width: 430px) and (max-width: 559px) {
+  .md-form-slot { display: block; }
+}
+
+/* 触控目标不因形态变小：折叠态勾选框仍 22×22，不低于 20px（§8 规则 5）。
+   这条把任何试图缩小的规则挡回去。 */
+.md-opt-key, .md-blank-index, .md-judge-badge { min-width: 22px; min-height: 22px; }
+
+/* ============================================================
+ * 横向滚动的最后防线：320 宽度下不许出现横向滚动条（验收硬门槛）。
+ * 若真有溢出，宁可裁掉装饰边也不许把正文挤出去。
+ * ============================================================ */
+.md-tabbar, .md-seg, .type-select, .wb-tabs, .select-row, .src-actions, .backup-actions { min-width: 0; }

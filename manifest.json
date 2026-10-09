@@ -1,13 +1,13 @@
 {
-  "name": "MemoDeck · 考试记忆系统",
+  "name": "MemoDeck · 安全生产题库记忆系统",
   "short_name": "MemoDeck",
-  "description": "基于间隔重复算法的考试记忆卡片系统，支持学习、练习、考试、错题本全流程。",
+  "description": "基于间隔重复的题库刷题与记忆管理：今日任务、四种练习模式、错题本、离线备份。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#F2F2F7",
-  "theme_color": "#007AFF",
+  "background_color": "#F8F5F0",
+  "theme_color": "#F8F5F0",
   "lang": "zh-CN",
   "icons": [
     {
@@ -25,19 +25,24 @@
   ],
   "shortcuts": [
     {
-      "name": "学习",
-      "url": "./index.html#/study",
-      "description": "今日复习队列"
+      "name": "今日",
+      "url": "./index.html#/today",
+      "description": "今天该学什么"
     },
     {
-      "name": "练习",
-      "url": "./index.html#/exercise",
-      "description": "答题自动判分"
+      "name": "答题",
+      "url": "./index.html#/practice/answer",
+      "description": "客观题系统判分"
+    },
+    {
+      "name": "模拟考试",
+      "url": "./index.html#/practice/mock",
+      "description": "计时交卷统一判分"
     },
     {
       "name": "错题本",
       "url": "./index.html#/wrongbook",
-      "description": "回顾错题"
+      "description": "攻薄弱项与错题重考"
     }
   ]
 }

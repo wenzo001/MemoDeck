@@ -1,9 +1,20 @@
 /* ============================================================
- * MemoDeck · Design Tokens + Base
- * — 唯一默认 :root {}（Light tokens）
- * — @media (prefers-color-scheme: dark) — 只放组件硬编码覆盖
- *   （dark token 全在 themes.css 的 html[data-theme="dark"] 里）
- *   reduced-motion 归 accessibility.css，此处不再重复
+ * MemoDeck 3.0 · Design Tokens + Base
+ *
+ * 设计源：docs/DESIGN.md（暖纸墨色 Warm-Paper Ink + 琥珀暖调 Amber Warm）
+ *
+ * 两条架构约定（改了就会全站漂移，务必守住）：
+ *   1. **只有这一份 :root 声明浅色值。** 深色值只有 `html[data-theme="dark"]` 一处。
+ *      2.x 曾有 3 份深色声明（tokens 的 @media、themes 的手动 dark、themes 的 @media :root），
+ *      同一个色值写三遍，改一处漏两处。3.0 起 applyTheme 永远把解析后的
+ *      'light' | 'dark' 落到 data-theme 上（auto 模式由 matchMedia 实时解析），
+ *      于是 token 层不再需要 @media (prefers-color-scheme) —— 系统偏好和手动覆盖
+ *      走的是同一条路径，「系统 dark + 手动 light 漏深色」这一类 bug 从根上消失。
+ *   2. **组件只准用语义 token，不准用字面色。** --md-* 是语义层，
+ *      下面的短名（--primary / --surface / --text-main …）是 2.x 组件的兼容别名，
+ *      一律 var() 指向 --md-*，不重复写字面 HEX。
+ *
+ * reduced-motion 归 accessibility.css，此处不再重复。
  * ============================================================ */
 
 /* ============================================================
@@ -28,92 +39,179 @@
   min-width: 0;
 }
 
+/* ============================================================
+ * LIGHT —— 暖纸墨色（DESIGN.md §2.1）
+ * ============================================================ */
 :root {
-  /* —— BRAND —— */
-  --primary:          #007AFF;
-  --primary-hover:    #0A84FF;
-  --primary-active:   #0066CC;
-  --primary-bg:       rgba(0, 122, 255, 0.10);
-  --primary-bg-hover: rgba(0, 122, 255, 0.16);
+  /* —— 语义色板（唯一真相源，§2.1 逐行对应）—— */
+  --md-canvas:               #F8F5F0;  /* 画布：页面底色 */
+  --md-surface:              #FFFFFF;  /* 表面：卡片、底部栏、弹层 */
+  --md-surface-sunken:       #F3EFE9;  /* 下沉面：说明条、内嵌区、次按钮 */
+  --md-text-primary:         #211A15;  /* 主文字：题干、标题、指标数字 */
+  --md-text-secondary:       #57504A;  /* 次文字：选项文本、说明正文 */
+  --md-text-tertiary:        #8A827B;  /* 三级文字：元信息、日期、口径注释 */
+  --md-text-disabled:        #A39C95;  /* 禁用文字、占位 */
+  --md-border:               #E9E3DA;  /* 描边 1px（表内 #E9E3E0，实测取 #E9E3DA） */
+  --md-border-strong:        #CFC5B8;  /* 强描边：未选中勾选框 */
+  --md-ink:                  #211A15;  /* 主操作底：浅墨底白字 */
+  --md-ink-on:               #FFFFFF;  /* 主操作之上的前景 */
+  --md-amber:                #B45309;  /* 唯一强调色：进度、到期、学习中、已作答 */
+  --md-amber-on:             #FFFFFF;
+  --md-amber-surface:        #FDF0DC;  /* 琥珀底面：恢复提示、学习中芯片 */
+  --md-judge-correct:        #1E7A3C;  /* 判对 / 已掌握 / 已攻克 */
+  --md-judge-correct-on:     #FFFFFF;
+  --md-judge-correct-surface:#E4F3E9;
+  --md-judge-wrong:          #C22E27;  /* 判错 / 新错 */
+  --md-judge-wrong-on:       #FFFFFF;
+  --md-judge-wrong-surface:  #FCEBE9;
+  --md-judge-pending:        #2F6BD4;  /* 待自评 / 需复习 */
+  --md-judge-pending-on:     #FFFFFF;
+  --md-judge-pending-surface:#E8EFFC;
+  --md-neutral:              #CEC7C0;  /* 新题 / 未作答 / 零值柱 */
+  --md-neutral-surface:      #EFEAE3;
+  --md-on-neutral:           #211A15;
 
-  /* —— SEMANTIC —— */
-  --success:       #34C759;
-  --success-bg:    rgba(52, 199, 89, 0.12);
-  --success-border: rgba(52, 199, 89, 0.30);
-  /* 承载 --on-accent 文字的语义填充档。浅色模式必须用深档：
-     白字压 #34C759 只有 2.22:1，压 #1E7A32 是 5.41:1（AA 正文要 4.5:1）。
-     深色模式语义色本身更亮，改由 themes.css 把 --on-accent 压成近黑，此档等于亮色本体。 */
-  --success-fill:  #1E7A32;
-  --danger:        #FF3B30;
-  --danger-bg:     rgba(255, 59, 48, 0.10);
-  --danger-border: rgba(255, 59, 48, 0.28);
-  --danger-fill:   #D70015;   /* 白字 5.38:1（原 #FF3B30 只有 3.55:1） */
-  --warn:          #FF9500;
-  --warn-bg:       rgba(255, 149, 0, 0.12);
-  --info:          #5AC8FA;
-  --info-bg:       rgba(90, 200, 250, 0.12);
+  /* 琥珀/语义色的透明档：由 HEX 换算成 rgba，避免同一色相写两份而漂移 */
+  --md-amber-tint:           rgba(180, 83, 9, 0.10);
+  --md-amber-tint-hover:     rgba(180, 83, 9, 0.16);
+  --md-correct-tint:         rgba(30, 122, 60, 0.30);
+  --md-wrong-tint:           rgba(194, 46, 39, 0.28);
+  --md-pending-tint:         rgba(47, 107, 212, 0.28);
 
-  /* —— TEXT (iOS label hierarchy) —— */
-  --text-main:       #1C1C1E;
-  --text-muted:      #6E6E73;
-  --text-tertiary:   #8E8E93;
-  --text-disabled:   rgba(60, 60, 67, 0.30);
-  --text-placeholder: rgba(60, 60, 67, 0.36);
-  /* 填充 accent（primary / success / danger）之上的前景色，两套主题都是白 */
-  --on-accent:        #FFFFFF;
+  /* —— 深度与阴影（§6 三级，不用纯黑阴影）—— */
+  --md-shadow-1: 0 1px 2px rgba(33, 26, 21, .05);
+  --md-shadow-2: 0 4px 16px -4px rgba(33, 26, 21, .10), 0 2px 4px -2px rgba(33, 26, 21, .06);
+  --md-shadow-3: 0 30px 80px -20px rgba(33, 26, 21, .30), 0 20px 40px -16px rgba(33, 26, 21, .20);
+  --md-glow:     0 0 0 1px rgba(250, 198, 44, .08);
 
-  /* —— SURFACES —— */
-  --bg:              #F2F2F7;
-  --surface:         #FFFFFF;
-  --surface-2:       #F2F2F7;
-  --surface-3:       #FFFFFF;
-  --surface-elevated:#FFFFFF;
-  --surface-hover:   #E8E8ED;
-  --surface-pressed: #D1D1D6;
-  /* 卡片内的次级底：走半透明 fill，明暗两套主题各自覆盖 --fill-*，这里不必重复声明 */
+  /* —— 排版（§3.1 字体族 / §3.2 字号阶；字距恒为 0）—— */
+  --md-font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --md-font-num: "Inter Tight", Inter, system-ui, -apple-system, sans-serif;
+  --md-lh-metric:   56px;   /* 关键指标 52/56 */
+  --md-lh-title:    32px;   /* 页面标题 24/32 */
+  --md-lh-question: 29px;   /* 题干 18/29 */
+  --md-lh-option:   24px;   /* 选项 15/24 */
+  --md-lh-body:     25px;   /* 正文/解析 14/25 */
+  --md-lh-label:    18px;   /* 标签按钮 13/18 */
+  --md-lh-meta:     18px;   /* 元信息 12/18 */
+
+  /* —— 形状（§5.4 圆角：8 芯片 / 12 选项说明 / 16 卡片 / 20 主卡弹层 / 27 按钮 / 999 药丸）—— */
+  --md-r-chip:    8px;
+  --md-r-option:  12px;
+  --md-r-card:    16px;
+  --md-r-sheet:   20px;
+  --md-r-button:  27px;
+  --md-r-pill:    999px;
+
+  /* —— 控件尺寸（§4.1 + 验收硬门槛：触控目标 ≥44×44pt）—— */
+  --md-h-btn-primary: 52px;   /* 主按钮 52–54 */
+  --md-h-btn-second:  44px;   /* 次按钮 44 */
+  --md-h-tf-btn:      88px;   /* 判断题两个大按钮 */
+  --md-s-box:         22px;   /* 勾选框 / 单选点 22×22 */
+  --md-h-chip:        22px;   /* 状态芯片 22–24 */
+  --md-h-wb-item:     88px;   /* 错题条目最小高 */
+  --md-hit:           44px;   /* 最小触摸目标 */
+  --md-gap-target:    8px;    /* 相邻目标最小间距 */
+
+  /* —— 布局（§5.3 七档断点）—— */
+  --md-page-pad:      20px;   /* 320→16 / 360→18 / 430+→20 */
+  --md-sidebar-w:     0px;    /* 560+ = 200 / 1024+ = 232 */
+  --md-pane-question: 0px;    /* 768 = 328 / 1024+ = 480 */
+  --md-field-max:     680px;  /* 字段宽度硬上限，超出损害扫读 */
+  --md-crease-safe:   24px;   /* 折叠屏折痕安全边 */
+
+  /* ============================================================
+   * 兼容别名 —— 2.x 组件规则读的短名，全部指向上面的语义 token。
+   * 新组件请直接用 --md-*；这层只是让既有 ~2500 行规则不用逐行改写。
+   * ============================================================ */
+
+  /* BRAND：3.0 起 --primary = 琥珀（唯一强调色），主操作另有 --ink */
+  --primary:          var(--md-amber);
+  --primary-hover:    #93410A;
+  --primary-active:   #7C3708;
+  --primary-bg:       var(--md-amber-tint);
+  --primary-bg-hover: var(--md-amber-tint-hover);
+  --on-primary:       var(--md-amber-on);
+
+  /* 主操作（墨色）—— 2.x 的 --primary 承担的角色 */
+  --ink:              var(--md-ink);
+  --on-ink:           var(--md-ink-on);
+
+  /* SEMANTIC */
+  --success:       var(--md-judge-correct);
+  --success-bg:    var(--md-judge-correct-surface);
+  --success-border: var(--md-correct-tint);
+  --success-fill:  var(--md-judge-correct);
+  --danger:        var(--md-judge-wrong);
+  --danger-bg:     var(--md-judge-wrong-surface);
+  --danger-border: var(--md-wrong-tint);
+  --danger-fill:   var(--md-judge-wrong);
+  /* §7.3 命名消歧：「需复习」是蓝色档，不是橙色。--warn 这个历史短名
+     在 3.0 里语义改为「待自评 / 需复习」，取值跟着走蓝，避免界面出现
+     第 5 个色相与琥珀撞车（§1.3 的结论）。 */
+  --warn:          var(--md-judge-pending);
+  --warn-bg:       var(--md-judge-pending-surface);
+  --info:          var(--md-judge-pending);
+  --info-bg:       var(--md-judge-pending-surface);
+  --neutral:       var(--md-neutral);
+  --neutral-bg:    var(--md-neutral-surface);
+  /* 填充色之上的前景：浅墨/琥珀/绿/红/蓝都是白字；深色模式整体翻转 */
+  --on-accent:     #FFFFFF;
+
+  /* TEXT */
+  --text-main:       var(--md-text-primary);
+  --text-muted:      var(--md-text-secondary);
+  --text-tertiary:   var(--md-text-tertiary);
+  --text-disabled:   var(--md-text-disabled);
+  --text-placeholder: var(--md-text-disabled);
+
+  /* SURFACES */
+  --bg:              var(--md-canvas);
+  --surface:         var(--md-surface);
+  --surface-2:       var(--md-surface-sunken);
+  --surface-3:       var(--md-surface);
+  --surface-elevated: var(--md-surface);
+  --surface-hover:   #EFEAE3;
+  --surface-pressed: #E4DDD3;
   --surface-sub:     var(--fill-secondary);
-  /* 吸顶应用栏的半透明底：配 backdrop-filter 做 iOS nav bar 的毛玻璃，
-     内容从栏下面滚过时是「透过来」而不是被一块实心板切断 */
-  --chrome-bg:       rgba(242, 242, 247, 0.78);
-  --chrome-line:     rgba(60, 60, 67, 0.16);
+  --chrome-bg:       rgba(248, 245, 240, 0.86);
+  --chrome-line:     var(--md-border);
+  --card-bg:         var(--md-surface);
+  --elevated-bg:     var(--md-surface);
 
-  /* Legacy aliases */
-  --card-bg:         #FFFFFF;
-  --elevated-bg:     #FFFFFF;
+  /* SEPARATORS / FILLS */
+  --border:          var(--md-border);
+  --border-opaque:   var(--md-border);
+  --border-sub:      #F0EAE2;
+  --border-strong:   var(--md-border-strong);
+  --fill-primary:    rgba(33, 26, 21, 0.10);
+  --fill-secondary:  rgba(33, 26, 21, 0.055);
+  --fill-tertiary:   rgba(33, 26, 21, 0.03);
 
-  /* —— SEPARATORS —— */
-  --border:          rgba(60, 60, 67, 0.12);
-  --border-opaque:   var(--border-sub); /* v2.1: 消除硬编码 */
-  --border-sub:      rgba(60, 60, 67, 0.08);
+  /* SHADOWS：L1 微浮 / L2 卡片 / L3 弹层 */
+  --shadow-card:     var(--md-shadow-2), 0 0 0 1px var(--md-border);
+  --shadow-hover:    var(--md-shadow-2), 0 0 0 1px var(--md-amber);
+  --shadow-modal:    var(--md-shadow-3);
+  --shadow-popover:  var(--md-shadow-2);
+  --shadow-input:    0 0 0 1px var(--md-border);
+  --shadow-input-focus: 0 0 0 3px var(--md-amber-tint);
+  --shadow-inset:    inset 0 0 0 1px var(--md-border);
+  --focus-ring:      0 0 0 3px var(--md-canvas), 0 0 0 5px var(--md-amber);
 
-  /* —— FILLS —— */
-  --fill-primary:    rgba(120, 120, 128, 0.16);
-  --fill-secondary:  rgba(120, 120, 128, 0.08);
-  --fill-tertiary:   rgba(120, 120, 128, 0.04);
+  /* SHAPE */
+  --radius-2xs:  var(--md-r-chip);
+  --radius-xs:   var(--md-r-chip);
+  --radius-sm:   var(--md-r-option);
+  --radius-md:   var(--md-r-option);
+  --radius-lg:   var(--md-r-card);
+  --radius-xl:   var(--md-r-sheet);
+  --radius-btn:  var(--md-r-button);
+  --radius-full: var(--md-r-pill);
+  --radius:      var(--md-r-card);
+  --radius-lg2:  var(--md-r-pill);   /* 2.x 里给徽章/胶囊用的药丸档 */
 
-  /* —— SHADOWS —— */
-  --shadow-card:     0 0 0 0.5px rgba(60, 60, 67, 0.08), 0 1px 0 rgba(0,0,0,0.02), 0 4px 16px -8px rgba(28,28,30,0.08);
-  --shadow-hover:    0 0 0 0.5px rgba(0,122,255,0.22), 0 1px 0 rgba(0,0,0,0.02), 0 8px 24px -12px rgba(0,122,255,0.20);
-  --shadow-modal:    0 16px 48px -12px rgba(28, 28, 30, 0.32);
-  --shadow-popover:  0 8px 24px -8px rgba(28, 28, 30, 0.18);
-  --shadow-input:    0 0 0 0.5px rgba(60, 60, 67, 0.14);
-  --shadow-input-focus: 0 0 0 3.5px rgba(0, 122, 255, 0.22);
-  --shadow-inset:    inset 0 0 0 0.5px rgba(60, 60, 67, 0.12);
-  --focus-ring:      0 0 0 4px rgba(0, 122, 255, 0.28);
-
-  /* —— SHAPE —— */
-  --radius-2xs:  6px;
-  --radius-xs:   8px;
-  --radius-sm:   10px;
-  --radius-md:   14px;
-  --radius-lg:   16px;
-  --radius-xl:   22px;
-  --radius-full: 9998px;
-  /* Legacy */
-  --radius:      16px;
-  --radius-lg2:  22px;
-
-  /* —— SPACING (8-point grid) —— */
+  /* SPACING (8pt 基线，§5.4) */
   --sp-1:  4px;
   --sp-2:  8px;
   --sp-3:  12px;
@@ -124,8 +222,8 @@
   --sp-8:  32px;
   --sp-10: 40px;
 
-  /* —— MOTION —— */
-  --ease-out:    cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* MOTION（设计稿 §动效：选中 80ms、切题 120ms+8px、弹层 200ms） */
+  --ease-out:    cubic-bezier(0.2, 0, 0, 1);
   --ease-in:     cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-instant: 80ms;
@@ -133,56 +231,93 @@
   --dur-base:    200ms;
   --dur-slow:    320ms;
 
-  /* —— TYPOGRAPHY —— */
+  /* TYPOGRAPHY：短名 = 字号阶的兼容别名 */
   --font-xs:   11px;
-  --font-sm:   12px;
-  --font-md:   13px;
-  --font-base: 14px;
-  --font-lg:   15px;
-  --font-xl:   17px;
+  --font-sm:   12px;   /* 元信息下限，不可再小 */
+  --font-md:   13px;   /* 标签按钮 */
+  --font-base: 14px;   /* 正文/解析：容器挤压时的下限 */
+  --font-lg:   15px;   /* 选项 */
+  --font-xl:   18px;   /* 题干 */
   --font-2xl:  20px;
-  --font-3xl:  22px;
+  --font-3xl:  24px;   /* 页面标题 / 统计数字 */
   --font-4xl:  26px;
+  --font-metric: 52px; /* 关键指标 */
   --font-mono: "SF Mono", ui-monospace, Consolas, "Courier New", monospace;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --font-body: var(--md-font-ui);
+  --lh-question: var(--md-lh-question);
+  --lh-option:   var(--md-lh-option);
+  --lh-body:     var(--md-lh-body);
 
-  /* —— LAYOUT —— */
+  /* LAYOUT */
   --layout-max-study:   720px;
-  --layout-max-content: 1080px;
+  --layout-max-content: 960px;   /* 1440+ 内容区不再加宽（§5.3） */
   --layout-max-nav:     640px;
-  --layout-gutter:      16px;
+  --layout-gutter:      var(--md-page-pad);
   --header-h:           auto;
-  --nav-h:              50px;
+  --nav-h:              64px;    /* 底部导航：要装下 44pt 目标 + 标签 */
 }
 
 /* ============================================================
- * DARK (auto) — 无法 token 化的组件硬编码
- * Token 全由 themes.css 的 @media dark { :root } / html[data-theme="dark"] 负责
+ * DARK —— 不是浅色的机械反转（DESIGN.md §2.2）
  *
- * ⚠️ 每条都必须带 `html:not([data-theme="light"])` 守卫：这里是不走 token 的深色 rgba，
- * 只靠 @media 判断的话，「系统 dark + 用户手动选 light」会把深色底漏进浅色界面。
- * auto 模式下 applyTheme 是移除 data-theme 属性（js/app.js:53），
- * 所以 :not() 能同时覆盖 auto 与手动 dark。
+ * 关键差异：主按钮在浅色是「墨底白字」、在深色是「纸底墨字」——
+ * 深色下再放一个近黑按钮会与画布糊在一起。
+ * 深色改用暖色辉光代替阴影（§6）。
  *
- * 只留「与基线取值确实不同」的三条。原先还有 6 条是把基线在深色下的同一个值重写一遍
- * （rgba(118,118,128,.24) 就是深色 --fill-primary、rgba(118,118,128,.12) 就是深色
- * --fill-tertiary、.tab-nav 两条与 components.css 基线用同一组 token），
- * 同一个值写两遍只会漂移，已删。
+ * 这一份同时服务「手动选 dark」与「系统 dark + auto」，
+ * 因为 applyTheme 在 auto 模式下也会把解析结果写进 data-theme。
  * ============================================================ */
-@media (prefers-color-scheme: dark) {
-  /* 基线是 var(--surface)，深色下换成一档 fill，与 paste-box / select 对齐 */
-  html:not([data-theme="light"]) .src-actions input[type="text"] {
-    background: rgba(118, 118, 128, 0.24);
-  }
+html[data-theme="dark"] {
+  --md-canvas:               #141210;
+  --md-surface:              #1D1B18;
+  --md-surface-sunken:       #252220;
+  --md-text-primary:         #F5F1EB;
+  --md-text-secondary:       #D6D0C8;
+  --md-text-tertiary:        #8A827B;
+  --md-text-disabled:        #6B645E;
+  --md-border:               #3A3532;
+  --md-border-strong:        #57504A;
+  --md-ink:                  #F5F1EB;   /* 反转墨纸关系：纸底 */
+  --md-ink-on:               #141210;   /* 墨字 */
+  --md-amber:                #FAC62C;   /* 深色下需提亮才够对比 */
+  --md-amber-on:             #141210;
+  --md-amber-surface:        #2A2213;
+  --md-judge-correct:        #34D399;
+  --md-judge-correct-on:     #141210;
+  --md-judge-correct-surface:#1A2620;
+  --md-judge-wrong:          #F87171;
+  --md-judge-wrong-on:       #141210;
+  --md-judge-wrong-surface:  #2A1D1C;
+  --md-judge-pending:        #80B4E6;
+  --md-judge-pending-on:     #141210;
+  --md-judge-pending-surface:#1E2428;
+  --md-neutral:              #5A5450;
+  --md-neutral-surface:      #252220;
+  --md-on-neutral:           #F5F1EB;
 
-  /* 基线是 --border-opaque（深色为不透明 #38383A），虚线框在深色下太实 */
-  html:not([data-theme="light"]) .drop-zone {
-    border-color: var(--border);
-  }
+  --md-amber-tint:           rgba(250, 198, 44, 0.16);
+  --md-amber-tint-hover:     rgba(250, 198, 44, 0.24);
+  --md-correct-tint:         rgba(52, 211, 153, 0.34);
+  --md-wrong-tint:           rgba(248, 113, 113, 0.34);
+  --md-pending-tint:         rgba(128, 180, 230, 0.34);
 
-  html:not([data-theme="light"]) .md-home-week-ring svg circle:first-child {
-    stroke: rgba(118, 118, 128, 0.32);
-  }
+  /* §6：深色不用纯黑阴影，改暖色辉光 */
+  --md-shadow-1: 0 1px 2px rgba(0, 0, 0, .5), 0 0 0 1px rgba(250, 198, 44, .08);
+  --md-shadow-2: 0 4px 16px -4px rgba(0, 0, 0, .6), 0 0 0 1px rgba(250, 198, 44, .08);
+  --md-shadow-3: 0 30px 80px -20px rgba(0, 0, 0, .78), 0 0 0 1px rgba(250, 198, 44, .10);
+
+  --primary-hover:    #FFD84D;
+  --primary-active:   #E0AE12;
+  --on-primary:       var(--md-amber-on);
+  --on-accent:        #141210;   /* 深色语义色更亮，白字压上去不够对比 */
+  --surface-hover:    #2E2A26;
+  --surface-pressed:  #3A3532;
+  --border-sub:       #252220;
+  --chrome-bg:        rgba(20, 18, 16, 0.82);
+  --fill-primary:     rgba(245, 241, 235, 0.12);
+  --fill-secondary:   rgba(245, 241, 235, 0.07);
+  --fill-tertiary:    rgba(245, 241, 235, 0.04);
+  --focus-ring:       0 0 0 3px var(--md-canvas), 0 0 0 5px var(--md-amber);
 }
 
 /* ============================================================
@@ -204,7 +339,9 @@ input[type="password"],
 textarea,
 select) {
   font-family: inherit;
-  font-size: var(--font-lg);
+  /* §5.5：移动端输入框字号 ≥16px 防止 iOS 自动缩放。原来读 --font-lg(15px)，
+     正好卡在 16 以下，是 iOS 缩放的老病根。 */
+  font-size: 16px;
   line-height: 1.5;
   color: var(--text-main);
   background: var(--surface);
@@ -241,7 +378,7 @@ select:disabled) {
 
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A827B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 16px;
@@ -291,9 +428,10 @@ html {
 * { -webkit-tap-highlight-color: transparent; }
 
 :where(button, a, label, summary, .btn, .btn-text, .tag, .src-badge,
-       .tab-nav, .theme-switch, .per-chip, .md-opt-key, .md-study-badge,
+       .tab-nav, .md-tabs, .theme-switch, .per-chip, .md-opt-key, .md-study-badge,
        .stat-lbl, .sum-lbl, .q-label, .md-study-group-title,
        .appbar, .appbar-title,
+       .md-chip, .md-seg, .md-answered, .md-opt-mark, .md-blank-index,
        h1, h2, h3, h4, th, dt) {
   -webkit-user-select: none;
   user-select: none;
@@ -311,13 +449,14 @@ html {
 /* 图片/文件不被拖出浏览器变成文件 */
 :where(img, svg) { -webkit-user-drag: none; user-drag: none; }
 
+/* 320 窄屏的水平内边距由 --md-page-pad 统一负责（见 responsive.css 的断点表） */
 #app {
   width: 100%;
   max-width: var(--layout-max-content);
   margin: 0 auto;
   /* viewport-fit=cover + display:standalone 下内容会顶进状态条/刘海，
      底部同类问题已在 v2.1 修过，顶部漏了 */
-  padding: calc(16px + env(safe-area-inset-top, 0px)) var(--layout-gutter) 80px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) var(--md-page-pad) 80px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -329,8 +468,7 @@ html {
 
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: var(--md-font-ui);
   background: var(--bg);
   color: var(--text-main);
   margin: 0;
@@ -338,9 +476,20 @@ body {
   line-height: 1.6;
   font-size: var(--font-lg);
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "tnum" on;
+  /* §3.1：指标数字用 tabular-nums，数字变化不抖 */
+  font-variant-numeric: tabular-nums;
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
+
+/* 指标数字专用类：Inter Tight + 等宽数字（§3.1） */
+.md-num, .md-metric, .stat-num, .sum-num, .md-score-num {
+  font-family: var(--md-font-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* §3.2 字距恒为 0，不使用负字距 */
+:where(h1, h2, h3, h4, p, li, span, div) { letter-spacing: 0; }
 
 
 
@@ -348,13 +497,15 @@ body {
    所有 tab section 只需 width:100%，天然被父容器限制
    内部卡片/题目等元素可各自有 max-width（单卡片大小，不是容器宽度） */
 #app .md-home,
+#app .md-today,
 #app .md-study,
 #app .md-practice,
 #app .md-exercise,
 #app .md-exam,
 #app .md-preview,
 #app .md-category,
-#app .md-wrongbook {
+#app .md-wrongbook,
+#app .md-bank {
   width: 100%;
 }
 
