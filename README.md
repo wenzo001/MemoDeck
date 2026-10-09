@@ -255,7 +255,8 @@ memodeck/
 │   ├── core.test.js              # 纯逻辑单元测试（26 项，零依赖）
 │   ├── queue.test.js              # 取题管线测试（21 项，含 48 组合不变式遍历）
 │   ├── extensions.test.js         # 扩展测试（progress/session/stats/migration/wrongbook，41 项）
-│   └── v3-compat.test.js          # 3.0 兼容与规则测试（38 项：导航映射、逐空拆分、题型注册、单一离开规则、命名消歧、判分口径唯一性）
+│   ├── v3-compat.test.js          # 3.0 兼容与规则测试（38 项：导航映射、逐空拆分、题型注册、单一离开规则、命名消歧、判分口径唯一性）
+│   └── icons.test.js              # §4.5 图标构建规则的静态守卫（6 项：零外边距名单与模板双向差集、四档 22/24/30/44 各有主人）
 ├── docs/
 │   ├── USAGE.md            # 使用说明
 │   ├── ARCHITECTURE.md     # 架构设计（面向二次开发）
@@ -416,19 +417,24 @@ migration 写、供导出用）、学习进度 `examProgress:v1`、会话恢复�
 本地验证：
 
 ```bash
-# 单元测：纯逻辑，零依赖、零框架、零构建（四个套件共 126 项）
+# 单元测：纯逻辑与静态文本，零依赖、零框架、零构建（五个套件共 132 项）
 npm test
 
 # 等价于
-node test/core.test.js && node test/queue.test.js && node test/extensions.test.js && node test/v3-compat.test.js
+node test/core.test.js && node test/queue.test.js && node test/extensions.test.js && node test/v3-compat.test.js && node test/icons.test.js
 
 # 浏览器：起个静态服务器
 python3 -m http.server 8000   # 打开 http://localhost:8000
 ```
 
-推送后会跑 CI，九道检查：单元测试（四个套件 126 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
+推送后会跑 CI，九道检查：单元测试（五个套件 132 项）、版本号三处一致、PWA 预缓存清单覆盖页面全部资源、
 JS 语法、Vue 模板表达式安全（防白屏）、关键文件完整、文档链接可达、CSS 变量都有定义、对比度不变量。
 规则见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)，本地可直接复现。
+
+CI 只能跑不依赖浏览器的检查。**真视口下的几何门禁不在 CI 里**：七档断点的留白/侧栏/分栏宽度、
+触摸目标 ≥44、文案不截断、六模式全流程判分呈现、2.x 数据升级路径，以及 §4.5 的
+「22/24/30/44 四档字形全部居中」——这些需要一个真 Chromium 逐档量
+`getBoundingClientRect()`，用固定断言脚本在每次动过布局后手工跑一次。
 
 ---
 
