@@ -630,7 +630,12 @@
 /* ============================================================
  * 平板 / 桌面双栏（§5.3：768 起答题页转双栏，题面栏固定）
  * ============================================================ */
-.md-answer-cols { display: block; }
+/* 窄屏是**竖排**，但它和宽屏的双栏是同一个容器、同一个 gap ——
+   这里曾经写 `display: block`，于是宽屏那 24px 间距在窄屏直接失效：
+   题面卡与作答区严丝合缝贴在一起（实测 gapCardToAnswer = 0，
+   用户报的「换行显示部分卡片上下没有间距」就是它）。
+   横向间距改纵向间距的正确做法是把方向换掉，而不是把 flex 关掉。 */
+.md-answer-cols { display: flex; flex-direction: column; gap: var(--sp-6); }
 .md-pane-history { display: none; }   /* 「这道题的历史」宽屏才有价值（§5.4） */
 .md-pane-question { max-width: 100%; }
 
@@ -640,7 +645,7 @@
      §5.3 给的 768/328 与 1024/480 是「题面栏」的期望值；在 232 侧栏 + 24 折痕安全边
      都保留的前提下，两者不可能同时满足 240 的作答栏下限——设计文档自身在这里是矛盾的。
      取舍：把硬门槛（不裁字）当约束，把题面栏宽度当偏好，用 flex-shrink 让题面栏先退。 */
-  .md-answer-cols { display: flex; gap: var(--sp-6); align-items: flex-start; }
+  .md-answer-cols { flex-direction: row; gap: var(--sp-6); align-items: flex-start; }
   .md-pane-question {
     flex: 0 1 var(--md-pane-question);
     min-width: 0;
