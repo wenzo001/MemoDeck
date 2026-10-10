@@ -386,6 +386,16 @@ const wrongItems        = computed(() => wrongEntries.value.map(e => e.item));
   （只记已实测的行），拿 `heights.length` 当行数会让首次渲染推出 n=0、整个列表渲染成空。
   验滚动类改动时**别用绝对毫秒**：这台机器同一份代码能从 28 漂到 190ms；
   在同一次运行里交替加载「窗口化 / 全挂载」两份取**比值**，漂移才会抵消。
+- **横排改竖排要换 `flex-direction`，不是把 `flex` 关掉**：间距声明（`gap`）只在
+  flex/grid 容器里生效 —— 窄屏写 `display: block` 会让宽屏那 24px 间距**静默失效**，
+  两张卡直接相接。2026-10-09 用户报的「小屏换行显示部分卡片上下没有间距」就是这个：
+  `.md-answer-cols` 的换行只发生在媒体查询里，窄屏那份是 `display: block` → 实测
+  题面卡与作答区间距 **0px**（360/390/430/560 全中）。改法：窄屏
+  `display:flex; flex-direction:column; gap: var(--sp-6)`，宽屏只覆盖 `flex-direction: row`。
+  门禁在七档断点脚本里：窄屏要求 `flex/column` 且「题面卡下缘 → 作答区上缘」≥16px
+  （把 CSS 改回 `display:block` 会让 4 档 × 2 条腿共 8 条同时变红）。
+  **同类排查的结论**：按几何判据扫 8 路由 × 8 宽度，全站只有这一处真缺陷；
+  排查要排除「绝对定位的卡组叠放」与「横向滚动条」这两类设计形态，否则满屏假红。
 - **`.icon` 自带 `margin-right: .375em`，居中的方形容器必须把它关回 0**：这道边距是给
   「图标 + 文字」的行排间距用的，但 `justify-content: center` 抵不过单边外边距 ——
   22×22 的 `.md-opt-key` 实测被推走 4.125px，字形中心偏 2.07px，就是 §4.5 说的「图标不居中」。
